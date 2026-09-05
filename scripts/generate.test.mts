@@ -169,6 +169,19 @@ describe('runGenerate', () => {
     300_000,
   );
 
+  it('audits only the newest dates when asked', async () => {
+    // The archive only grows, and a cube is audited on the night it is written
+    // and never edited after, so the nightly run checks the live window rather
+    // than spending longer every day re-proving the same files.
+    const scratch = await mkdtemp(path.join(tmpdir(), 'cbsbd3d-audit-'));
+    await writeFile(path.join(scratch, '2020-01-01.json'), '{"formatVersion":1}');
+    await writeFile(path.join(scratch, '2020-01-02.json'), '{"formatVersion":1}');
+    expect((await auditAll(scratch, { rederive: false })).checked).toBe(2);
+    const recent = await auditAll(scratch, { rederive: false, recent: 1 });
+    expect(recent.checked).toBe(1);
+    expect(recent.failures.join('\n')).toMatch(/2020-01-02/);
+  });
+
   it('reports a file that is not the cube its name claims', async () => {
     const scratch = await mkdtemp(path.join(tmpdir(), 'cbsbd3d-audit-'));
     // The same sound puzzle under the wrong date: everything internal checks

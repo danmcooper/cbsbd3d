@@ -9,7 +9,7 @@
  * the promise the whole pipeline rests on — no scraped source exists to fall
  * back on, so a bad generator change that ships is a bad puzzle that ships.
  *
- * Run: npm run audit [puzzlesDir] [--no-rederive]
+ * Run: npm run audit [puzzlesDir] [--no-rederive] [--recent=N]
  * Exits non-zero if any check fails on any file.
  */
 import { readFile, readdir } from 'node:fs/promises';
@@ -281,6 +281,14 @@ export interface AuditOptions {
   /** Rebuild every date from its filename. On by default; it is the strongest
    * check here and also much the slowest, at tens of seconds a cube. */
   rederive?: boolean;
+  /**
+   * Audit only the `recent` newest dates. The archive only grows, and a cube is
+   * audited on the night it is written and never edited afterwards, so a
+   * nightly run that re-derives the whole archive spends longer every day
+   * re-proving the same files. Left undefined, everything is checked - which is
+   * what a local run before a release should do.
+   */
+  recent?: number;
   onProgress?: (event: { file: string; failures: string[] }) => void;
 }
 
@@ -296,7 +304,8 @@ export async function auditAll(
   );
   const shapes = new Set(professionShapesFor(mix.professionShapes, SIZE).map((s) => s.join(',')));
 
-  const files = (await readdir(dir)).filter((f) => PUZZLE_FILE.test(f)).sort();
+  const all = (await readdir(dir)).filter((f) => PUZZLE_FILE.test(f)).sort();
+  const files = opts.recent === undefined ? all : all.slice(Math.max(0, all.length - opts.recent));
   const failures: string[] = [];
   for (const file of files) {
     const bad: string[] = [];
@@ -320,8 +329,14 @@ const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv
 if (isMain) {
   const args = process.argv.slice(2);
   const dir = args.find((a) => !a.startsWith('--')) ?? path.join(process.cwd(), 'puzzles');
+  const recent = Number(args.find((a) => a.startsWith('--recent='))?.slice('--recent='.length));
+  if (args.some((a) => a.startsWith('--recent=')) && !Number.isInteger(recent)) {
+    console.error('usage: npm run audit [puzzlesDir] [--no-rederive] [--recent=N]');
+    process.exit(2);
+  }
   auditAll(path.resolve(dir), {
     rederive: !args.includes('--no-rederive'),
+    recent: Number.isInteger(recent) ? recent : undefined,
     onProgress: ({ file, failures }) => {
       if (failures.length === 0) console.log(`ok   ${file}`);
       else for (const m of failures) console.error(`FAIL ${file}: ${m}`);
