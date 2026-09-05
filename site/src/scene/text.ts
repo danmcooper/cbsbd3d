@@ -76,3 +76,19 @@ export function fitObject(object: THREE.Object3D, maxW: number, maxH: number): n
   object.scale.setScalar(scale);
   return scale;
 }
+
+/**
+ * A solid black bar sized to what it sits behind, padded. Clues only: the name
+ * and profession carry a shell each, but a five-line clue behind a shell is
+ * still soup, so the clue gets an opaque ground instead.
+ */
+export function plate(object: THREE.Object3D, pad: number): THREE.Mesh {
+  const box = new THREE.Box3().setFromObject(object);
+  const centre = box.getCenter(new THREE.Vector3());
+  const bar = new THREE.Mesh(
+    new THREE.PlaneGeometry(box.max.x - box.min.x + pad * 2, box.max.y - box.min.y + pad),
+    new THREE.MeshBasicMaterial({ color: 0x000000 }),
+  );
+  bar.position.set(centre.x, centre.y, -0.06);
+  return bar;
+}

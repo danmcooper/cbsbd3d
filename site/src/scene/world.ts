@@ -3,28 +3,33 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { CARD_COUNT, type Puzzle } from '../../../shared/puzzle';
 import { addressOf } from '../../../shared/solver/lattice';
 import { faceOf } from '../../../shared/solver/vocab';
-import {
-  ADDR_COL,
-  ADDR_SIZE,
-  ADDR_X,
-  ADDR_Y,
-  BACKGROUND,
-  BIG_NAME,
-  BIG_NAME_Y,
-  BIG_PROF,
-  BIG_PROF_Y,
-  FACE_Z,
-  FOV,
-  GAP,
-  HEAD_SMALL,
-  HEAD_Y,
-  LAYER_FILL,
-  SPEED,
-} from './constants';
+import { clueText, wrapClue } from '../clue/text';
+import { cellLayout, type ClueLayout, type TextLayout } from './cell';
+import { BACKGROUND, FACE_Z, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
 import { loadHead } from './head';
 import { pickCell } from './pick';
-import { fitObject, loadFont, textMesh } from './text';
+import { fitObject, fitScale, loadFont, plate, textMesh, uniformClueScale } from './text';
 import { cellPosition, framingDistance } from './lattice';
+
+/** One line of a cell's text, centred, sitting on the faces' plane. */
+function label(part: TextLayout, colour: number): THREE.Object3D {
+  const mesh = textMesh(part.text, part.size, colour, true);
+  if (part.fit) fitObject(mesh, ...part.fit);
+  mesh.position.set(0, part.y, FACE_Z);
+  return mesh;
+}
+
+/** A wrapped clue over its black bar, centred on its own origin. */
+function clueBlock(lines: string[], box: ClueLayout, colour: number): THREE.Object3D {
+  const group = new THREE.Group();
+  lines.forEach((line, k) => {
+    const mesh = textMesh(line, box.size, colour, false);
+    mesh.position.y = ((lines.length - 1) / 2 - k) * box.leading;
+    group.add(mesh);
+  });
+  group.add(plate(group, box.pad));
+  return group;
+}
 
 export interface Cell {
   i: number;
@@ -34,7 +39,16 @@ export interface Cell {
   head: THREE.Group | null;
   /** What the head is lerping towards: `HEAD_SMALL` open, 0 once solved. */
   headTarget: number;
+  /** Everything built for this cell, so a rebuild can clear it. */
   labels: THREE.Object3D[];
+  /** The two faces. Solving swaps which one is on screen. */
+  open: THREE.Object3D | null;
+  solved: THREE.Object3D | null;
+  clue: THREE.Object3D | null;
+  /** The board-wide clue size this cell's clue opens to. */
+  clueScale: number;
+  /** Whether this cell was solved last time the state was applied. */
+  wasSolved: boolean | null;
 }
 
 /**
@@ -56,6 +70,7 @@ export class CubeWorld {
 
   /** Set by the React side each frame; the loop only reads them. */
   view = { ry: 0, camY: 0, zoom: 1 };
+  private face = new Set<number>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -90,7 +105,20 @@ export class CubeWorld {
       hit.userData.cell = i;
       group.add(hit);
       this.world.add(group);
-      this.cells.push({ i, z: Math.floor(i / 9), group, hit, head: null, headTarget: HEAD_SMALL, labels: [] });
+      this.cells.push({
+        i,
+        z: Math.floor(i / 9),
+        group,
+        hit,
+        head: null,
+        headTarget: HEAD_SMALL,
+        labels: [],
+        open: null,
+        solved: null,
+        clue: null,
+        clueScale: 1,
+        wasSolved: null,
+      });
     }
 
     this.frame = requestAnimationFrame(this.tick);
@@ -127,33 +155,55 @@ export class CubeWorld {
   }
 
   /**
-   * Name, profession and address on every face. Unsolved is the only state
-   * this draws so far; the solved face arrives with the reveal.
+   * Both faces of every cell, built once per puzzle: solving swaps which one
+   * is visible rather than rebuilding anything. Every clue on the board is
+   * drawn at one shared size, the tightest fit across all of them, so a wordy
+   * clue never reads as a smaller one.
    */
   private buildLabels(puzzle: Puzzle): void {
+    const fits: number[] = [];
     for (const cell of this.cells) {
       for (const old of cell.labels) cell.group.remove(old);
-      cell.labels = [];
       const person = puzzle.people[cell.i];
-      const colour = LAYER_FILL[cell.z];
+      const open = cellLayout(person, false, cell.z);
+      const done = cellLayout(person, true, cell.z);
 
-      const name = textMesh(person.name.toLowerCase(), 0.27, colour, true);
-      fitObject(name, ...BIG_NAME);
-      name.position.set(0, BIG_NAME_Y, FACE_Z);
+      const openFace = new THREE.Group();
+      openFace.add(label(open.name, open.colour), label(open.profession, open.colour));
 
-      const prof = textMesh(person.profession, 0.2, colour, true);
-      fitObject(prof, ...BIG_PROF);
-      prof.position.set(0, BIG_PROF_Y, FACE_Z);
+      const solvedFace = new THREE.Group();
+      solvedFace.add(label(done.name, done.colour), label(done.profession, done.colour));
+      let clue: THREE.Object3D | null = null;
+      if (done.clue && person.clue) {
+        clue = clueBlock(wrapClue(clueText(person.clue, puzzle.people, cell.i)), done.clue, done.colour);
+        clue.position.set(0, done.clue.y, FACE_Z);
+        fits.push(fitScale(new THREE.Box3().setFromObject(clue), done.clue.maxW, done.clue.maxH));
+        solvedFace.add(clue);
+      }
 
       // `textMesh` centres what it builds, so the address is hung off the left
       // edge by half its own width rather than positioned by its centre.
-      const address = textMesh(addressOf(cell.i), ADDR_SIZE, ADDR_COL, false);
+      const address = textMesh(addressOf(cell.i), open.address.size, open.address.colour, false);
       const box = new THREE.Box3().setFromObject(address);
-      address.position.set(ADDR_X + (box.max.x - box.min.x) / 2, ADDR_Y, FACE_Z);
+      address.position.set(
+        open.address.x + (box.max.x - box.min.x) / 2,
+        open.address.y,
+        FACE_Z,
+      );
 
-      cell.labels = [name, prof, address];
-      cell.group.add(name, prof, address);
+      cell.open = openFace;
+      cell.solved = solvedFace;
+      cell.clue = clue;
+      cell.labels = [openFace, solvedFace, address];
+      cell.group.add(openFace, solvedFace, address);
     }
+
+    const uniform = uniformClueScale(fits);
+    for (const cell of this.cells) {
+      cell.clueScale = uniform;
+      cell.clue?.scale.setScalar(uniform);
+    }
+    this.applyState();
   }
 
   /**
@@ -171,8 +221,28 @@ export class CubeWorld {
    * rebuilding anything.
    */
   setState(flipped: number[]): void {
-    const face = new Set(flipped);
-    for (const cell of this.cells) cell.headTarget = face.has(cell.i) ? 0 : HEAD_SMALL;
+    this.face = new Set(flipped);
+    this.applyState();
+  }
+
+  /**
+   * Puts the board into the state React last named. Separate from `setState`
+   * because the labels finish loading after the first state arrives, and the
+   * cells built then have to be caught up.
+   */
+  private applyState(): void {
+    for (const cell of this.cells) {
+      const on = this.face.has(cell.i);
+      cell.headTarget = on ? 0 : HEAD_SMALL;
+      if (cell.open) cell.open.visible = !on;
+      if (cell.solved) cell.solved.visible = on;
+      // A clue that has just been revealed pops open; one that was already
+      // there — a game reloaded from storage — is simply there.
+      if (cell.clue && on && cell.wasSolved === false) {
+        cell.clue.scale.setScalar(cell.clueScale * 0.35);
+      }
+      cell.wasSolved = on;
+    }
   }
 
   /** The cell the verdict prompt is about, lifted slightly out of the board. */
@@ -210,6 +280,10 @@ export class CubeWorld {
         const s = c.head.scale.x + (target - c.head.scale.x) * SPEED;
         c.head.scale.setScalar(s);
         c.head.visible = s > 0.002;
+      }
+      if (c.clue) {
+        const want = c.clueScale;
+        c.clue.scale.setScalar(c.clue.scale.x + (want - c.clue.scale.x) * SPEED);
       }
     }
     this.renderer.render(this.scene, this.camera);
