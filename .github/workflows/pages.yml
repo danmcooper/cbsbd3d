@@ -1,0 +1,46 @@
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Assemble the Pages artifact under the UUID path
+        # `base` is `/<repo>/<uuid>/` and Pages serves the artifact root at
+        # `/<repo>/`, so everything goes one level down, under the UUID. There
+        # is deliberately nothing at the repo root: the UUID is the whole
+        # reason the game is not simply browsable.
+        run: |
+          sub=$(node -p "require('./config/site.json').base.split('/').filter(Boolean).slice(1).join('/')")
+          test -n "$sub"
+          mkdir -p "artifact/$sub/puzzles"
+          cp -r site/dist/. "artifact/$sub/"
+          cp puzzles/*.json "artifact/$sub/puzzles/"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifact
+      - id: deployment
+        uses: actions/deploy-pages@v4
