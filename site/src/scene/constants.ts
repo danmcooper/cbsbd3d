@@ -27,10 +27,20 @@ export const BIG_PROF_Y = -0.52;
 export const TOP_NAME_Y = 0.78;
 export const TOP_PROF_Y = 0.5;
 
-/** The clue grows to fill the space the face left behind. */
-export const CLUE_W = 2.95;
-export const CLUE_H = 1.88;
-export const CLUE_Y = -0.28;
+/**
+ * The clue grows to fill the space the face left behind: the width of the name
+ * box, and the gap between the solved profession and the bottom of the face.
+ *
+ * These three are the one place the mockup's numbers did not survive contact
+ * with generated clues. It carried 2.95 x 1.88 at y -0.28, sized against
+ * hand-written two-liners that never came near the box; a real clue runs to
+ * seven wrapped lines, fills whatever box it is given, and at 2.95 that put it
+ * through the cards on either side — the cells are only GAP apart — and up
+ * through the profession.
+ */
+export const CLUE_W = 2.1;
+export const CLUE_H = 1.43;
+export const CLUE_Y = -0.34;
 
 /** Every cell wears its address, small, top left. */
 export const ADDR_X = -1.16;

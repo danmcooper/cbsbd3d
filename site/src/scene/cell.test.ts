@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import type { Person } from '../../../shared/puzzle';
 import { cellLayout } from './cell';
+import { BIG_NAME, GAP, TOP_PROF_Y } from './constants';
 
 const person: Person = {
   name: 'ada',
@@ -48,4 +49,16 @@ it('leaves a suspect with nothing to say without a clue box', () => {
   // Flavour-line cards carry no clue at all; solving one must not open an
   // empty black bar where a clue would have been.
   expect(cellLayout({ ...person, clue: null }, true, 0).clue).toBeNull();
+});
+
+it('keeps the clue inside the card, clear of the profession above it', () => {
+  const { clue, profession } = cellLayout(person, true, 0);
+  // A clue fills whatever box it is given: the board-wide scale grows the
+  // wordiest clue until it just fits, and every other clue rides that scale.
+  // So the box is the card, and getting it wrong is not visible until a
+  // seven-line clue turns up. The mockup's 2.95 was wider than the distance
+  // between two cells, and its box reached up through the profession.
+  expect(clue?.maxW).toBeLessThanOrEqual(BIG_NAME[0]);
+  expect(clue?.maxW).toBeLessThan(GAP);
+  expect(clue!.y + clue!.maxH / 2).toBeLessThan(TOP_PROF_Y - profession.size / 2);
 });

@@ -91,7 +91,7 @@ export function cellLayout(person: Person, flipped: boolean, z: number): CellLay
     },
     clue:
       flipped && person.clue
-        ? { y: CLUE_Y, size: 0.2, leading: 0.28, pad: 0.12, maxW: CLUE_W, maxH: CLUE_H }
+        ? { y: CLUE_Y, size: 0.2, leading: 0.24, pad: 0.12, maxW: CLUE_W, maxH: CLUE_H }
         : null,
     address: { x: ADDR_X, y: ADDR_Y, size: ADDR_SIZE, colour: ADDR_COL },
     colour: flipped ? (person.criminal ? RED : GREEN) : fill,
