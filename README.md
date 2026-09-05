@@ -64,12 +64,10 @@ and copy them across.
 
 ## Deployment
 
-Pushing to `main` builds and deploys to GitHub Pages, under the UUID path in
-`config/site.json`. Nothing is served at the repo root: the UUID is the whole
-reason the game is not simply browsable.
+Pushing to `main` builds and deploys to GitHub Pages at the `base` in
+`config/site.json` — `https://danmcooper.github.io/cbsbd3d/`.
 
-One-time repo setup: **Settings → Pages → Source: GitHub Actions**. Never
-regenerate the UUID — it is the URL people have.
+One-time repo setup: **Settings → Pages → Source: GitHub Actions**.
 
 A nightly workflow (`generate.yml`, 03:17 UTC) tops the archive back up to
 seven days ahead and commits; that commit is itself a push to `main`, so the

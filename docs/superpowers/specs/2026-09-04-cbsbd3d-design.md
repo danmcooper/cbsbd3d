@@ -192,7 +192,7 @@ here than in the 2D repo, where a scraped puzzle is always available.
 
 ## The app
 
-Static site, Vite and TypeScript, GitHub Pages under a UUID base path read from
+Static site, Vite and TypeScript, GitHub Pages under the base path read from
 `config/site.json`. No server and no API: the app fetches the manifest and one
 dated file.
 

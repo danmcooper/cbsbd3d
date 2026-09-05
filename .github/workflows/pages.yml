@@ -28,17 +28,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Assemble the Pages artifact under the UUID path
-        # `base` is `/<repo>/<uuid>/` and Pages serves the artifact root at
-        # `/<repo>/`, so everything goes one level down, under the UUID. There
-        # is deliberately nothing at the repo root: the UUID is the whole
-        # reason the game is not simply browsable.
+      - name: Assemble the Pages artifact
+        # Pages serves the artifact root at the `base` in config/site.json, so
+        # the build goes at the root and the archive's puzzles beside it.
         run: |
-          sub=$(node -p "require('./config/site.json').base.split('/').filter(Boolean).slice(1).join('/')")
-          test -n "$sub"
-          mkdir -p "artifact/$sub/puzzles"
-          cp -r site/dist/. "artifact/$sub/"
-          cp puzzles/*.json "artifact/$sub/puzzles/"
+          mkdir -p artifact/puzzles
+          cp -r site/dist/. artifact/
+          cp puzzles/*.json artifact/puzzles/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: artifact
