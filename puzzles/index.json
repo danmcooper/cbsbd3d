@@ -1,0 +1,44 @@
+{
+  "puzzles": [
+    {
+      "date": "2026-09-11",
+      "id": "7f54325c8662",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-09-10",
+      "id": "d5b9e69d28f7",
+      "difficulty": "Tricky"
+    },
+    {
+      "date": "2026-09-09",
+      "id": "dd84b7a0a794",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-09-08",
+      "id": "148b645d3771",
+      "difficulty": "Hard"
+    },
+    {
+      "date": "2026-09-07",
+      "id": "2d830625704b",
+      "difficulty": "Tricky"
+    },
+    {
+      "date": "2026-09-06",
+      "id": "a5de085e3c74",
+      "difficulty": "Tricky"
+    },
+    {
+      "date": "2026-09-05",
+      "id": "1de660845908",
+      "difficulty": "Tricky"
+    },
+    {
+      "date": "2026-09-04",
+      "id": "002bb110b738",
+      "difficulty": "Tricky"
+    }
+  ]
+}

@@ -1,0 +1,339 @@
+/**
+ * Independent audit of every cube in `puzzles/`.
+ *
+ * Deliberately re-derives everything from the file alone rather than trusting
+ * anything the generator recorded: it re-parses the `origHint` strings,
+ * re-solves from scratch, and re-measures difficulty. A puzzle that passes here
+ * is playable and fair whatever the generator believed. On top of that it
+ * rebuilds each date from its own filename and checks the bytes match, which is
+ * the promise the whole pipeline rests on — no scraped source exists to fall
+ * back on, so a bad generator change that ships is a bad puzzle that ships.
+ *
+ * Run: npm run audit [puzzlesDir] [--no-rederive]
+ * Exits non-zero if any check fails on any file.
+ */
+import { readFile, readdir } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { type Puzzle, validatePuzzle } from '../shared/puzzle.ts';
+import { namedCards } from '../shared/solver/candidates.ts';
+import type { Bands } from '../shared/solver/difficulty.ts';
+import { bandsFor, classify, loadBands, measure } from '../shared/solver/difficulty.ts';
+import { SIZE, type Shape } from '../shared/solver/enumerate.ts';
+import { generatePuzzle, professionShapesFor } from '../shared/solver/generate.ts';
+import { LATTICE, adjacent } from '../shared/solver/lattice.ts';
+import { type ClueMix, loadMix, mixFor3d } from '../shared/solver/mix.ts';
+import { makeBoard, unitMembers } from '../shared/solver/predicates.ts';
+import {
+  type Clues,
+  forcedGiven,
+  isUniquelySolvable,
+  parseClues,
+  solveChain,
+} from '../shared/solver/solve.ts';
+import { SHAPING_LABEL, seedFor, unionCriminals } from './generate.mts';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+const PUZZLE_FILE = /^\d{4}-\d{2}-\d{2}\.json$/;
+
+/**
+ * How hard one predicate may be leaned on, measured over the 54 puzzles the
+ * bands were fitted from: the worst spends 7 of its 14 clue cards on
+ * `unit_shares_n_out_of_n_traits`. Counted as a share, because a threshold
+ * counted in cards means nothing on a board of another size; floored at the
+ * absolute figure so the two readings agree at 14 clue cards.
+ */
+const ABSOLUTE_PRED_CAP = 7;
+const WORST_PRED_SHARE = 0.5;
+
+/** 27 cards, 26 letters: the cast spends every initial and repeats exactly one. */
+const ALPHABET = 26;
+
+/** Counts these families never word: "0 persons in a corner have an innocent
+ * directly above them" floors at 1 across all 41 real instances. */
+const DIR_FAMILIES = new Set([
+  'n_in_unit_have_trait_in_dir',
+  'n_t_in_unit_have_trait_in_dir',
+  'n_professions_have_trait_in_dir',
+]);
+
+interface Loaded {
+  file: string;
+  puzzle: Puzzle;
+  shape: Shape;
+  clues: Clues;
+  truth: boolean[];
+}
+
+function load(file: string, puzzle: Puzzle): Loaded {
+  return {
+    file,
+    puzzle,
+    shape: { professions: puzzle.people.map((p) => p.profession) },
+    clues: parseClues(puzzle.people.map((p) => p.origHint)),
+    truth: puzzle.people.map((p) => p.criminal),
+  };
+}
+
+/** Returns one message per failed check; empty means the cube is sound. */
+export function auditPuzzle(l: Loaded, bands: Bands, shapes: Set<string>): string[] {
+  const bad: string[] = [];
+  const { puzzle, shape, clues, truth } = l;
+
+  if (`${puzzle.date}.json` !== l.file) bad.push(`date ${puzzle.date} does not match filename`);
+  if (puzzle.source !== 'generated') bad.push(`source is ${puzzle.source}, expected 'generated'`);
+
+  // Fairness. The strict form: every card recoverable from clue text alone,
+  // with nothing handed to the player up front.
+  if (!isUniquelySolvable(shape, clues, truth)) {
+    bad.push('not uniquely solvable from zero reveals');
+  }
+  if (!solveChain(shape, clues, truth, puzzle.initialReveals).solvedAll) {
+    bad.push('deduction chain stalls before every card is revealed');
+  }
+
+  // No guessing: each non-initial card must carry at least one stored path, and
+  // every stored path must actually suffice to deduce that card.
+  const initial = new Set(puzzle.initialReveals);
+  for (let i = 0; i < SIZE; i++) {
+    if (initial.has(i)) continue;
+    const paths = puzzle.people[i].paths;
+    if (paths === null || paths.length === 0) {
+      bad.push(`card ${i} has no path — the player would have to guess it`);
+      continue;
+    }
+    for (const flipped of paths) {
+      if (forcedGiven(shape, clues, truth, flipped)[i] !== truth[i]) {
+        bad.push(`card ${i}: stored path [${flipped.join(',')}] does not deduce it`);
+      }
+    }
+  }
+
+  // A hint has to be a deduction the player can act on: the sentences a step
+  // outlines must deduce exactly the cards it names. A card it forces but
+  // leaves unnamed hides a deduction already earned; one it names but does not
+  // force offers a reveal the board will not support.
+  const hintable = new Set<number>();
+  for (const step of puzzle.hints ?? []) {
+    const where = `hint for card ${step.reveals.join(',')}`;
+    if (step.reveals.length === 0) bad.push(`${where}: names no card at all`);
+    for (const target of step.reveals) {
+      hintable.add(target);
+      if (step.flipped.includes(target)) bad.push(`${where}: needs its own answer flipped first`);
+    }
+    for (const i of step.clues) {
+      if (!step.flipped.includes(i)) bad.push(`${where}: outlines clue ${i}, not a prerequisite`);
+      if (clues[i] === null) bad.push(`${where}: outlines card ${i}, which carries no clue`);
+    }
+    const outlined = clues.map((h, j) => (step.clues.includes(j) ? h : null));
+    const forced = forcedGiven(shape, outlined, truth, step.flipped);
+    const actually = forced.flatMap((v, i) => (v !== null && !step.flipped.includes(i) ? [i] : []));
+    if (`${actually}` !== `${[...step.reveals].sort((a, b) => a - b)}`) {
+      bad.push(`${where}: its outlined clues deduce ${actually.join(',') || 'nothing'} instead`);
+    }
+  }
+  for (let i = 0; i < SIZE; i++) {
+    if (!initial.has(i) && !hintable.has(i)) bad.push(`card ${i} has no hint step`);
+  }
+  if (!(puzzle.hints ?? []).some((s) => s.flipped.every((i) => initial.has(i)))) {
+    bad.push('no hint is available from the opening position');
+  }
+
+  // Clues name people, so the player has to map a name back to a card — here
+  // among 27 of them on three slices, two of which may be switched off. The
+  // cast is dealt alphabetically in address order to make that a glance rather
+  // than a hunt, spending every letter of the alphabet before it repeats one.
+  const names = puzzle.people.map((p) => p.name);
+  if (names.join(',') !== [...names].sort().join(',')) {
+    bad.push('names are not in alphabetical address order');
+  }
+  if (new Set(names).size !== names.length) {
+    bad.push(`${names.length - new Set(names).size} card(s) repeat a name`);
+  }
+  const initials = new Set(names.map((n) => n[0]));
+  if (initials.size !== ALPHABET) {
+    bad.push(`cast uses ${initials.size} initials for ${names.length} cards, expected ${ALPHABET}`);
+  }
+
+  const board = makeBoard(shape.professions, truth);
+  for (let i = 0; i < SIZE; i++) {
+    const hint = clues[i];
+    if (!hint) continue;
+
+    // A clue may not name the card it sits on.
+    if (namedCards(board, hint).has(i)) bad.push(`card ${i}: its own clue refers to it`);
+
+    // "Only 1 of the 1 criminals ... is ..." reads as a slip and duplicates
+    // `both_traits_in_unit_are_in_unit`; every real instance has shared < total.
+    if (hint.pred === 'unit_shares_n_out_of_n_traits_with_unit') {
+      const [shared, total] = hint.args.slice(3);
+      if (shared.t === 'num' && total.t === 'num' && shared.n >= total.n) {
+        bad.push(`card ${i}: clue shares all ${total.n} of the unit's traits`);
+      }
+    }
+    if (DIR_FAMILIES.has(hint.pred)) {
+      const count = hint.args[hint.args.length - 1];
+      if (count.t === 'num' && count.n === 0) bad.push(`card ${i}: directional clue counts zero`);
+    }
+    if (hint.pred === 'is_one_of_n_traits_in_unit') {
+      const [unit, , , count] = hint.args;
+      if (count.t === 'num' && count.n < 2) bad.push(`card ${i}: clue says "one of 1"`);
+      // Naming one member of a unit whose members all share the trait tells the
+      // player nothing: unit membership is visible, so "Cleo is one of
+      // Desmond's 3 innocent neighbors" only says Desmond's neighbors are
+      // innocent, with Cleo dressed up as a distinction she does not have.
+      if (unit.t === 'unit' && count.t === 'num') {
+        const members = unitMembers(board, unit.unit);
+        if (count.n >= members.length) {
+          bad.push(`card ${i}: names one of all ${members.length} of the unit`);
+        }
+      }
+    }
+    // Asking whether traits are "neighbors" inside a unit whose cards are all
+    // mutually adjacent tells the player nothing — every subset of such a unit
+    // is connected. On a cube that is any vertical neighbourhood and any
+    // two-card between.
+    if (
+      hint.pred === 'both_traits_are_neighbors_in_unit' ||
+      hint.pred === 'all_traits_are_neighbors_in_unit'
+    ) {
+      const arg0 = hint.args[0];
+      if (arg0.t === 'unit') {
+        const m = unitMembers(board, arg0.unit);
+        if (m.every((x) => m.every((y) => x === y || adjacent(LATTICE, x, y)))) {
+          bad.push(`card ${i}: asks for connectedness among ${m.length} mutually adjacent cards`);
+        }
+      }
+    }
+  }
+
+  // Real casts run seven to eleven professions in ragged groups of mostly two
+  // and three. Requiring an exact refitted shape is stricter than it has to be,
+  // but generation samples one wholesale, so anything else means the sampler
+  // broke.
+  const groups = new Map<string, number>();
+  for (const p of puzzle.people) groups.set(p.profession, (groups.get(p.profession) ?? 0) + 1);
+  const castShape = [...groups.values()].sort((a, b) => b - a).join(',');
+  if (!shapes.has(castShape)) {
+    bad.push(`profession shape [${castShape}] is not one refitted from a real puzzle`);
+  }
+
+  // No cube should lean on one predicate harder than any real puzzle does.
+  // Generation soft-caps at 2; this is the backstop.
+  const clued = clues.filter((h) => h !== null).length;
+  const cap = Math.max(ABSOLUTE_PRED_CAP, Math.floor(WORST_PRED_SHARE * clued));
+  const perPred = new Map<string, number>();
+  for (const hint of clues) if (hint) perPred.set(hint.pred, (perPred.get(hint.pred) ?? 0) + 1);
+  for (const [pred, n] of perPred) {
+    if (n > cap) {
+      bad.push(`uses ${pred} ${n} of ${clued} clues — no real puzzle leans past ${cap} here`);
+    }
+  }
+
+  // The stored difficulty must be the one the puzzle's own metrics earn.
+  // Generation labels rather than aims, so the invariant worth checking is that
+  // the label on disk is reproducible from the puzzle itself.
+  if (!bands[puzzle.difficulty]) {
+    bad.push(`difficulty ${puzzle.difficulty} has no calibrated band`);
+  } else {
+    const metrics = measure({
+      shape,
+      clues,
+      truth,
+      initialReveals: puzzle.initialReveals,
+      paths: puzzle.people.map((p) => p.paths),
+    });
+    const earned = classify(bandsFor(bands, SIZE), metrics);
+    if (earned !== puzzle.difficulty) {
+      bad.push(
+        `labelled ${puzzle.difficulty} but its metrics classify as ${earned}: ` +
+          `clueCards=${metrics.clueCards} chainLength=${metrics.chainLength} ` +
+          `abstractShare=${metrics.abstractShare.toFixed(2)} ` +
+          `meanPathSize=${metrics.meanPathSize.toFixed(2)}`,
+      );
+    }
+  }
+
+  return bad;
+}
+
+/** Rebuild a date from its filename and compare. One message if it differs. */
+function auditDerivation(l: Loaded, bands: Bands, mix: ClueMix): string[] {
+  const shaping = bands[SHAPING_LABEL];
+  if (!shaping) return [`no calibrated band named ${SHAPING_LABEL}`];
+  const date = l.file.slice(0, -'.json'.length);
+  const cubeBands = bandsFor(bands, SIZE);
+  const { puzzle } = generatePuzzle({
+    date,
+    difficulty: SHAPING_LABEL,
+    band: { ...shaping, criminals: unionCriminals(bands) },
+    seed: seedFor(date),
+    mix,
+    labelOf: (metrics) => classify(cubeBands, metrics),
+  });
+  return JSON.stringify(puzzle) === JSON.stringify(l.puzzle)
+    ? []
+    : ['does not rebuild from its own filename — the generator has changed under it'];
+}
+
+export interface AuditOptions {
+  /** Rebuild every date from its filename. On by default; it is the strongest
+   * check here and also much the slowest, at tens of seconds a cube. */
+  rederive?: boolean;
+  onProgress?: (event: { file: string; failures: string[] }) => void;
+}
+
+export async function auditAll(
+  dir: string,
+  opts: AuditOptions = {},
+): Promise<{ checked: number; failures: string[] }> {
+  const bands = loadBands(
+    JSON.parse(await readFile(path.join(ROOT, 'config', 'difficulty.json'), 'utf8')),
+  );
+  const mix = mixFor3d(
+    loadMix(JSON.parse(await readFile(path.join(ROOT, 'config', 'clue-mix.json'), 'utf8'))),
+  );
+  const shapes = new Set(professionShapesFor(mix.professionShapes, SIZE).map((s) => s.join(',')));
+
+  const files = (await readdir(dir)).filter((f) => PUZZLE_FILE.test(f)).sort();
+  const failures: string[] = [];
+  for (const file of files) {
+    const bad: string[] = [];
+    let loaded: Loaded | null = null;
+    try {
+      loaded = load(file, validatePuzzle(JSON.parse(await readFile(path.join(dir, file), 'utf8'))));
+    } catch (e) {
+      bad.push(String(e));
+    }
+    if (loaded) {
+      bad.push(...auditPuzzle(loaded, bands, shapes));
+      if (opts.rederive !== false) bad.push(...auditDerivation(loaded, bands, mix));
+    }
+    opts.onProgress?.({ file, failures: bad });
+    failures.push(...bad.map((m) => `${file}: ${m}`));
+  }
+  return { checked: files.length, failures };
+}
+
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  const args = process.argv.slice(2);
+  const dir = args.find((a) => !a.startsWith('--')) ?? path.join(process.cwd(), 'puzzles');
+  auditAll(path.resolve(dir), {
+    rederive: !args.includes('--no-rederive'),
+    onProgress: ({ file, failures }) => {
+      if (failures.length === 0) console.log(`ok   ${file}`);
+      else for (const m of failures) console.error(`FAIL ${file}: ${m}`);
+    },
+  }).then(
+    ({ checked, failures }) => {
+      console.log(`\n${checked} checked, ${failures.length} failures`);
+      if (failures.length) process.exit(1);
+    },
+    (e) => {
+      console.error(String(e));
+      process.exit(1);
+    },
+  );
+}
