@@ -189,7 +189,7 @@ export function parseHint(s: string): Hint {
   return { pred, args: raw.map((r, i) => parseArg(r, want[i])) };
 }
 
-function formatUnit(u: Unit): string {
+export function formatUnit(u: Unit): string {
   switch (u.kind) {
     case 'row':
     case 'col':
