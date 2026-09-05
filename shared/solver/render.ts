@@ -463,7 +463,9 @@ export const RENDERERS: Record<string, (a: HintArg[], o: RenderOptions) => strin
             : `${n} ${t} ${w} neighbors`;
       return `${name(u1.i)} and ${name(u2.i)} have ${q} in common`;
     }
-    const tail = predicateTail(u2, n === 1);
+    // "No innocent" is as singular a subject as "exactly 1 innocent", so both
+    // take the singular tail: "is #NAMES:4 horizontal neighbor", not "neighbors".
+    const tail = predicateTail(u2, n <= 1);
     if (n === 0) return `No ${t} ${where(u1)} is ${tail}`;
     const verb = n === 1 ? 'is' : 'are';
     return `Exactly ${n} ${plural(t, n)} ${where(u1)} ${verb} ${tail}`;

@@ -317,6 +317,11 @@ describe('comparison clue templates', () => {
     expect(r('units_share_n_traits(unit(between,pair(0,3)),unit(row,2),innocent,0)')).toBe(
       'No innocent #BETWEEN:pair(0,3) is in row 2',
     );
+    // "No innocent ... is" is a singular subject, so the neighbour tail stays
+    // singular too - "is #NAMES:9 vertical neighbor", not "neighbors".
+    expect(r('units_share_n_traits(unit(between,pair(0,3)),unit(vneighbor,9),innocent,0)')).toBe(
+      'No innocent #BETWEEN:pair(0,3) is #NAMES:9 vertical neighbor',
+    );
     // The 2D renderer refused a neighbour unit in first position, because the
     // archive phrased that shape three incompatible ways. The cube's neighbour
     // units carry their own locative phrase, so the generic form covers it.
