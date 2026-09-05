@@ -1,9 +1,28 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CARD_COUNT, type Puzzle } from '../../../shared/puzzle';
+import { addressOf } from '../../../shared/solver/lattice';
 import { faceOf } from '../../../shared/solver/vocab';
-import { BACKGROUND, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
+import {
+  ADDR_COL,
+  ADDR_SIZE,
+  ADDR_X,
+  ADDR_Y,
+  BACKGROUND,
+  BIG_NAME,
+  BIG_NAME_Y,
+  BIG_PROF,
+  BIG_PROF_Y,
+  FACE_Z,
+  FOV,
+  GAP,
+  HEAD_SMALL,
+  HEAD_Y,
+  LAYER_FILL,
+  SPEED,
+} from './constants';
 import { loadHead } from './head';
+import { fitObject, loadFont, textMesh } from './text';
 import { cellPosition, framingDistance } from './lattice';
 
 export interface Cell {
@@ -14,6 +33,7 @@ export interface Cell {
   head: THREE.Group | null;
   /** What the head is lerping towards: `HEAD_SMALL` open, 0 once solved. */
   headTarget: number;
+  labels: THREE.Object3D[];
 }
 
 /**
@@ -67,7 +87,7 @@ export class CubeWorld {
       hit.userData.cell = i;
       group.add(hit);
       this.world.add(group);
-      this.cells.push({ i, z: Math.floor(i / 9), group, hit, head: null, headTarget: HEAD_SMALL });
+      this.cells.push({ i, z: Math.floor(i / 9), group, hit, head: null, headTarget: HEAD_SMALL, labels: [] });
     }
 
     this.frame = requestAnimationFrame(this.tick);
@@ -79,6 +99,13 @@ export class CubeWorld {
    * solve animation scales them away rather than removing them.
    */
   async setPuzzle(puzzle: Puzzle): Promise<void> {
+    const font = loadFont().then(() => {
+      if (!this.disposed) this.buildLabels(puzzle);
+    });
+    await Promise.all([font, this.buildHeads(puzzle)]);
+  }
+
+  private async buildHeads(puzzle: Puzzle): Promise<void> {
     await Promise.all(
       puzzle.people.map(async (person, i) => {
         const cell = this.cells[i];
@@ -94,6 +121,36 @@ export class CubeWorld {
         cell.head = head;
       }),
     );
+  }
+
+  /**
+   * Name, profession and address on every face. Unsolved is the only state
+   * this draws so far; the solved face arrives with the reveal.
+   */
+  private buildLabels(puzzle: Puzzle): void {
+    for (const cell of this.cells) {
+      for (const old of cell.labels) cell.group.remove(old);
+      cell.labels = [];
+      const person = puzzle.people[cell.i];
+      const colour = LAYER_FILL[cell.z];
+
+      const name = textMesh(person.name.toLowerCase(), 0.27, colour, true);
+      fitObject(name, ...BIG_NAME);
+      name.position.set(0, BIG_NAME_Y, FACE_Z);
+
+      const prof = textMesh(person.profession, 0.2, colour, true);
+      fitObject(prof, ...BIG_PROF);
+      prof.position.set(0, BIG_PROF_Y, FACE_Z);
+
+      // `textMesh` centres what it builds, so the address is hung off the left
+      // edge by half its own width rather than positioned by its centre.
+      const address = textMesh(addressOf(cell.i), ADDR_SIZE, ADDR_COL, false);
+      const box = new THREE.Box3().setFromObject(address);
+      address.position.set(ADDR_X + (box.max.x - box.min.x) / 2, ADDR_Y, FACE_Z);
+
+      cell.labels = [name, prof, address];
+      cell.group.add(name, prof, address);
+    }
   }
 
   resize(width: number, height: number): void {
