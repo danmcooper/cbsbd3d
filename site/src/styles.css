@@ -52,3 +52,15 @@ a {
 .archive-difficulty {
   color: var(--text-muted);
 }
+
+.scene canvas {
+  display: block;
+  width: 100%;
+  /* The cube takes the drags; the browser must not also scroll or zoom. */
+  touch-action: none;
+}
+
+.no-webgl {
+  margin: 2rem 1rem;
+  color: var(--text-muted);
+}

@@ -1,4 +1,5 @@
 import { validatePuzzle } from '../../../shared/puzzle';
+import Scene from '../scene/Scene';
 import { useFetch } from '../useFetch';
 
 export default function Play({ date }: { date: string }) {
@@ -20,7 +21,7 @@ export default function Play({ date }: { date: string }) {
       <h1>
         {puzzle.date} · {puzzle.difficulty}
       </h1>
-      {/* The cube goes here. */}
+      <Scene puzzle={puzzle} />
       <p>
         <a href="#/">Back to the archive</a>
       </p>
