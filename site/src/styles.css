@@ -31,3 +31,24 @@ h1 {
 a {
   color: inherit;
 }
+
+.archive-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 1rem 2rem;
+}
+
+.archive-list a {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.archive-difficulty {
+  color: var(--text-muted);
+}

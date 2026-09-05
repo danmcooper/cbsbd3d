@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
-import { expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import App from './App';
 
-it('names the game', () => {
+afterEach(() => vi.unstubAllGlobals());
+
+it('names the game', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response('{"puzzles":[]}', { status: 200 })));
   render(<App />);
-  expect(screen.getByRole('heading', { name: /cbsbd3d/i })).toBeDefined();
+  expect(await screen.findByRole('heading', { name: /cbsbd3d/i })).toBeDefined();
 });
