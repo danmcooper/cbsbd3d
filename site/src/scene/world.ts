@@ -22,6 +22,7 @@ import {
   SPEED,
 } from './constants';
 import { loadHead } from './head';
+import { pickCell } from './pick';
 import { fitObject, loadFont, textMesh } from './text';
 import { cellPosition, framingDistance } from './lattice';
 
@@ -48,6 +49,8 @@ export class CubeWorld {
   readonly cells: Cell[] = [];
   private readonly world = new THREE.Group();
   private readonly pmrem: THREE.PMREMGenerator;
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly pointer = new THREE.Vector2();
   private frame = 0;
   private disposed = false;
 
@@ -151,6 +154,21 @@ export class CubeWorld {
       cell.labels = [name, prof, address];
       cell.group.add(name, prof, address);
     }
+  }
+
+  /**
+   * Which slices are on screen. A hidden slice is removed from the scene, not
+   * faded: a ghosted cell still reads as a suspect, and half the point of the
+   * switches is to be able to say "these nine and no others".
+   */
+  setSlices(on: boolean[]): void {
+    for (const cell of this.cells) cell.group.visible = on[cell.z];
+  }
+
+  /** The cell under a point in normalised device coordinates, or null. */
+  pick(ndcX: number, ndcY: number): number | null {
+    this.pointer.set(ndcX, ndcY);
+    return pickCell(this.raycaster, this.cells, this.pointer, this.camera);
   }
 
   resize(width: number, height: number): void {

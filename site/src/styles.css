@@ -64,3 +64,58 @@ a {
   margin: 2rem 1rem;
   color: var(--text-muted);
 }
+
+.play-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.play-head a {
+  text-decoration: none;
+}
+
+.scene {
+  position: relative;
+  background: #0f1116;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0 0.5rem;
+}
+
+.slices {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.75rem 0 1.25rem;
+}
+
+.slices-readout {
+  margin: 0;
+  font: 600 12px ui-monospace, monospace;
+  color: #9fb4d6;
+  letter-spacing: 0.06em;
+}
+
+.slices-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 26px;
+}
+
+.slices-row button {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+
+.slices-row button[data-on='1'] {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
+}
