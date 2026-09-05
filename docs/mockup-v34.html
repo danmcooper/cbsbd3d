@@ -1,0 +1,609 @@
+<h2>Addresses on every cell</h2>
+<p class="subtitle">Each head is the real profession emoji &mdash; Twemoji SVG paths pushed into actual 3D geometry with a bevel. Unsolved, it rides small above a big name and career; solved, the head goes and the clue takes the space in <span style="color:#ff6a60">red</span> or <span style="color:#5ad46a">green</span>. <b>Drag sideways to turn, up or down to ride the viewer up and down, two&#8209;finger slide or pinch to zoom.</b></p>
+
+<style>
+  #panel { display:flex; gap:18px; flex-wrap:wrap; align-items:center; margin-bottom:8px;
+           font-size:13px; padding:9px 12px; background:rgba(127,127,127,.09); border-radius:8px; }
+  #panel label { display:flex; gap:7px; align-items:center; white-space:nowrap; }
+  #panel input[type=range] { width:100px; }
+  #wrap { position:relative; border-radius:10px; overflow:hidden; background:#0f1116; }
+  #wrap canvas { display:block; touch-action:none; }
+  #readout { position:absolute; left:12px; top:10px; font:600 12px ui-monospace,monospace;
+             color:#9fb4d6; letter-spacing:.06em; pointer-events:none; }
+  #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+             color:#8ea3c4; font:600 14px ui-sans-serif,system-ui; }
+  #prompt { position:absolute; left:50%; bottom:74px; transform:translateX(-50%); display:none;
+            gap:10px; align-items:center; background:rgba(8,10,15,.93); border:1px solid #394052;
+            border-radius:9px; padding:9px 13px; }
+  #prompt.on { display:flex; }
+  #prompt span { color:#e6e6e6; font-size:13px; }
+  #prompt button { border:0; border-radius:6px; padding:6px 12px; font-size:13px; font-weight:600;
+                   cursor:pointer; color:#fff; }
+  .bcrim { background:#c8362f; } .binn { background:#3f8f45; } .bcancel { background:#454b58; }
+  /* Fixed to the frame, not to the cube: near on the left, far on the right. */
+  #slices { position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+            display:flex; flex-direction:row; align-items:center; gap:26px; }
+  #slices button { border:0; padding:0; cursor:pointer; border-radius:50%;
+                   background:#2a3242; transition:background .12s, box-shadow .12s; }
+  #slices button[data-on="1"] { box-shadow:0 0 0 2px rgba(255,255,255,.14); }
+</style>
+
+<div id="panel">
+  <label>spacing <input type="range" id="gap" min="16" max="44" value="30"></label>
+  <label>size <input type="range" id="hsz" min="8" max="18" value="13"></label>
+  <label>depth <input type="range" id="dep" min="2" max="26" value="12"></label>
+  <label><input type="checkbox" id="puffy" checked> puffy bevel</label>
+  <label>others <input type="range" id="ghost" min="0" max="30" value="0"></label>
+  <label><input type="checkbox" id="bars"> cages</label>
+  <label>cage <input type="range" id="cagesz" min="55" max="100" value="100"></label>
+  <label>thickness <input type="range" id="barth" min="2" max="60" value="10"></label>
+  <label>bar darkness <input type="range" id="barop" min="10" max="100" value="55"></label>
+  <label>label <select id="labcol">
+    <option value="slice" selected>by slice</option>
+    <option value="white">white</option>
+    <option value="ice">ice</option>
+    <option value="amber">amber</option>
+    <option value="mint">mint</option>
+    <option value="ink">ink</option>
+  </select></label>
+  <label><input type="checkbox" id="shell" checked> dark shell</label>
+</div>
+
+<div id="wrap">
+  <div id="readout">layers&nbsp;1</div>
+  <div id="slices">
+    <button data-k="0" style="width:32px;height:32px" title="front slice"></button>
+    <button data-k="1" style="width:23px;height:23px" title="middle slice"></button>
+    <button data-k="2" style="width:16px;height:16px" title="back slice"></button>
+  </div>
+  <div id="loading">building 27 emoji…</div>
+  <div id="prompt"><span id="pname"></span>
+    <button class="bcrim" data-v="c">Criminal</button>
+    <button class="binn" data-v="i">Innocent</button>
+    <button class="bcancel" data-v="x">Cancel</button>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:8px">Every cell now carries its address in the top left, small and neutral: column <b>A&ndash;C</b> left to right, row <b>1&ndash;3</b> top to bottom, depth <b>a&ndash;c</b> front to back. So the middle of the cube is B2b, the near top left is A1a, and a clue can name a cell instead of describing a route to it.</p>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { SVGLoader } from 'three/addons/loaders/SVGLoader.js';
+import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// Names run alphabetically through the addresses: left to right, then top to
+// bottom, then front to back. A1a is ada, C1a cleo, A2a dov, C3c zola - so the
+// initial letter tells you where in reading order a suspect stands.
+const NAMES = ['ada','bo','cleo','dov','elsa','finn','gus','hana','igor',
+               'janet','kip','lulu','mo','nadia','otto','pia','quill','rex',
+               'sara','tam','uma','vic','wanda','xavi','yara','zed','zola'];
+const EMOJI = ['🕵️‍♀️','👩‍🍳','👩‍🔧','👨‍🌾','👨‍🎨','👩‍🎤','👮‍♂️','👩‍🚀','👨‍🏫',
+               '👩‍⚕️','👨‍🔬','👷‍♀️','🧙‍♀️','👨‍💼','👩‍💻','👨‍🍳','👨‍🚒','👩‍🌾',
+               '👨‍🎨','👨‍⚕️','👩‍✈️','👷‍♂️','👨‍🔧','👩‍🏫','👨‍💼','👨‍🎤','👩‍🚒'];
+const PROFS = ['sleuth','cook','mechanic','farmer','painter','singer','cop','astronaut','teacher',
+               'doctor','scientist','builder','witch','clerk','coder','cook','firefighter','farmer',
+               'painter','doctor','pilot','builder','mechanic','teacher','clerk','singer','firefighter'];
+// 0 unknown, 1 criminal, 2 innocent
+const SOLVED = [0,1,2,0,0,2,0,1,0, 2,0,0,1,0,0,0,2,0, 0,0,1,0,2,0,0,0,0];
+const CLUES = {1:'2 criminals\nto my left', 2:'no cook\nis above me', 5:'3 criminals\nbehind me',
+               7:'one of 4 crooks\nin my layer', 9:'every corner\nis innocent', 12:'more below me\nthan above me',
+               16:'the painter\nin front is clean', 20:'odd criminals\nin my row', 22:'as many cooks\nas cops'};
+
+const RED = 0xff5a4f, GREEN = 0x5ad46a, PALE = 0xe9edf5;
+// A flat colour always collides with some emoji, so the label carries its own
+// contrast: a dark shell behind the glyphs, with the fill picked from here.
+const FILLS = {
+  white: 0xf2f5fb,
+  ice:   0x9fe4ff,
+  amber: 0xffcf5c,
+  mint:  0x9ef2c9,
+  ink:   0x0b0f16,
+};
+const LAYER_FILL = [0xd6fce9, 0xb8f7d9, 0x9ef2c9];   // front, middle, back
+const SLICE_CSS = ['#d6fce9', '#b8f7d9', '#9ef2c9'];
+const labelFill = (c) => {
+  const v = document.getElementById('labcol').value;
+  return v === 'slice' ? LAYER_FILL[c.z] : FILLS[v];
+};
+const shellOn = () => document.getElementById('shell').checked;
+
+// Twemoji's own rule: keep FE0F when the sequence contains a ZWJ, strip it otherwise.
+function twemojiFile(str) {
+  const cps = [...str].map((c) => c.codePointAt(0).toString(16));
+  const zwj = cps.includes('200d');
+  return (zwj ? cps : cps.filter((c) => c !== 'fe0f')).join('-');
+}
+const svgURL = (e) => `https://cdn.jsdelivr.net/npm/@twemoji/svg@latest/${twemojiFile(e)}.svg`;
+
+const wrap = document.getElementById('wrap');
+const W = () => wrap.clientWidth;
+const H = () => Math.max(380, Math.round(innerHeight * 0.80));
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(W(), H());
+wrap.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1116);
+scene.fog = new THREE.Fog(0x0f1116, 30, 70);
+
+const camera = new THREE.PerspectiveCamera(42, W() / H(), 0.1, 200);
+camera.position.set(0, 0, 26);
+
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a2417, 1.0));
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(5, 8, 14); scene.add(key);
+const fill = new THREE.DirectionalLight(0x9db9ff, 0.75); fill.position.set(-9, -3, -8); scene.add(fill);
+
+// a tiny room environment so metal has something to reflect
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const world = new THREE.Group();
+scene.add(world);
+
+// ---- the lattice: each suspect sits inside their own metal cube ------------
+// Not metal: a near-black bar that only shows as a darkening of the background.
+const barMat = new THREE.MeshBasicMaterial({
+  color: 0x05070b, transparent: true, opacity: 0.55,
+});
+const barGeo = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
+const jointGeo = new THREE.IcosahedronGeometry(1, 1);
+
+/** The 12 edges and 8 corners of one cell's cage, side `L`. */
+function makeCage(L) {
+  const g = new THREE.Group();
+  const h = L / 2, r = barRadius;
+  const mat = barMat.clone();
+  g.userData.mat = mat;
+  const edge = (x, y, z, axis) => {
+    const m = new THREE.Mesh(barGeo, mat);
+    m.userData.cage = true;
+    m.scale.set(r, L, r);
+    m.position.set(x, y, z);
+    if (axis === 'x') m.rotation.z = Math.PI / 2;
+    if (axis === 'z') m.rotation.x = Math.PI / 2;
+    g.add(m);
+  };
+  for (const a of [-h, h]) for (const b of [-h, h]) {
+    edge(0, a, b, 'x');
+    edge(a, 0, b, 'y');
+    edge(a, b, 0, 'z');
+  }
+  for (const x of [-h, h]) for (const y of [-h, h]) for (const z of [-h, h]) {
+    const j = new THREE.Mesh(jointGeo, mat);
+    j.userData.cage = true;
+    j.scale.setScalar(r * 1.4);
+    j.position.set(x, y, z);
+    g.add(j);
+  }
+  return g;
+}
+
+// ---- emoji -> extruded geometry -------------------------------------------
+const loader = new SVGLoader();
+const cache = new Map();
+
+async function emojiGroup(emo, depth, puffy) {
+  if (!cache.has(emo)) {
+    const text = await fetch(svgURL(emo)).then((r) => r.text());
+    cache.set(emo, loader.parse(text).paths);
+  }
+  const paths = cache.get(emo);
+  const g = new THREE.Group();
+  paths.forEach((p, pi) => {
+    const mat = new THREE.MeshPhongMaterial({
+      color: p.color, shininess: puffy ? 42 : 8, specular: 0x222222, side: THREE.DoubleSide,
+    });
+    for (const shape of SVGLoader.createShapes(p)) {
+      const geo = new THREE.ExtrudeGeometry(shape, {
+        depth,
+        bevelEnabled: puffy,
+        bevelThickness: puffy ? depth * 0.28 : 0,
+        bevelSize: puffy ? 0.55 : 0,
+        bevelSegments: puffy ? 2 : 0,
+        curveSegments: 5,
+      });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.z = pi * (depth * 0.02);         // keep the drawing order in depth
+      g.add(m);
+    }
+  });
+  // Twemoji is a 36x36 viewBox with Y pointing down; normalise to a unit-ish head.
+  g.scale.set(1, -1, 1);
+  const box = new THREE.Box3().setFromObject(g);
+  const c = box.getCenter(new THREE.Vector3());
+  const s = 1 / Math.max(box.max.x - box.min.x, box.max.y - box.min.y);
+  const outer = new THREE.Group();
+  g.position.sub(c);
+  outer.add(g);
+  outer.userData.norm = s;                      // the 36px->1 unit normalisation
+  outer.scale.setScalar(s);
+  return outer;
+}
+
+// ---- cells -----------------------------------------------------------------
+const cells = [];
+const hitTargets = [];
+let gap = 3.0, headScale = 1.3, depth = 12, puffy = true, cageSize = 1.0, barRadius = 0.010;
+
+for (let z = 0; z < 3; z++) for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) {
+  const i = z * 9 + y * 3 + x;
+  const g = new THREE.Group();
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(1.7, 2.1, 1.7),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  hit.userData.cell = i;
+  g.add(hit);
+  world.add(g);
+  hitTargets.push(hit);
+  cells.push({ i, x, y, z, g, head: null, name: null, clue: null });
+}
+
+async function buildHeads() {
+  for (const c of cells) {
+    if (c.head) { c.g.remove(c.head); }
+    const h = await emojiGroup(EMOJI[c.i], depth, puffy);
+    h.scale.setScalar(h.userData.norm * headScale * (c.headTarget ?? HEAD_SMALL));
+    h.position.y = HEAD_Y;
+    c.g.add(h);
+    c.head = h;
+  }
+  document.getElementById('loading').style.display = 'none';
+  layout();
+}
+
+// ---- 3D text ---------------------------------------------------------------
+let FONT = null;
+function textMesh(str, size, color, shell = true) {
+  const geo = new TextGeometry(str, { font: FONT, size, height: size * 0.3, curveSegments: 3,
+    bevelEnabled: true, bevelThickness: size * 0.05, bevelSize: size * 0.035, bevelSegments: 1 });
+  geo.center();
+  // Real depth testing, so a near label occludes a far one. Labels stay legible
+  // by sitting clear in front of the extruded face rather than by cheating depth.
+  const face = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color, shininess: 30 }));
+  if (!shell || !shellOn()) return face;
+  const shellGeo = new TextGeometry(str, { font: FONT, size, height: size * 0.3, curveSegments: 3,
+    bevelEnabled: true, bevelThickness: size * 0.05, bevelSize: size * 0.12, bevelSegments: 1 });
+  shellGeo.center();
+  const back = new THREE.Mesh(shellGeo, new THREE.MeshBasicMaterial({ color: 0x05070b }));
+  back.position.z = -size * 0.05;
+  const g = new THREE.Group();
+  g.add(back, face);
+  return g;
+}
+
+function verdictColor(i, base) {
+  if (SOLVED[i] === 1) return RED;
+  if (SOLVED[i] === 2) return GREEN;
+  return base;
+}
+
+// With faces only on the front slice, the slices behind hand their whole cell
+// over to type: the name and career grow to fill the space a face would have had.
+const BIG_NAME = [2.10, 0.72];
+const BIG_PROF = [2.00, 0.50];
+const BIG_NAME_Y = 0.14;
+const BIG_PROF_Y = -0.52;
+const HEAD_SMALL = 0.42;   // a small head is a portrait, not the whole cell
+const HEAD_Y = 0.74;
+// Every cell wears its own address, small, top left: column A-C, row 1-3, depth a-c.
+const ADDR_COL = 0x8ea3bf;
+const ADDR_X = -1.16, ADDR_Y = 1.20, ADDR_SIZE = 0.15;
+const addressOf = (c) => 'ABC'[c.x] + (c.y + 1) + 'abc'[c.z];
+const CLUE_W = 2.95;      // the clue grows to fill the space the face left behind
+const CLUE_H = 1.88;
+const CLUE_Y = -0.28;
+const FACE_Z = 0.04;      // solved: the face is gone, so text takes its plane
+const TOP_NAME_Y = 0.78;  // solved: both go to the top, face gone
+const TOP_PROF_Y = 0.50;
+const FACE_ME = new THREE.Quaternion();
+
+function plateFor(group, pad) {
+  const box = new THREE.Box3().setFromObject(group);
+  const w = box.max.x - box.min.x + pad * 2;
+  const h = box.max.y - box.min.y + pad;
+  const c = box.getCenter(new THREE.Vector3());
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ color: 0x000000 }));
+  m.position.set(c.x, c.y, -0.06);
+  m.userData.plate = true;
+  return m;
+}
+
+/** How much to scale `g` so it just fills a `maxW` x `maxH` box. */
+function fitScale(g, maxW, maxH) {
+  const b = new THREE.Box3().setFromObject(g);
+  return Math.min(maxW / (b.max.x - b.min.x), maxH / (b.max.y - b.min.y));
+}
+
+/** A label fixed forward with the faces, drawing on top of all geometry. */
+function billboard(meshes, pad, bar) {
+  const g = new THREE.Group();
+  for (const m of meshes) g.add(m);
+  if (bar) g.add(plateFor(g, pad));      // solid black bar: clues only
+  BILLBOARDS.push(g);
+  return g;
+}
+const BILLBOARDS = [];
+
+function buildLabels() {
+  for (const c of cells) {
+    const wasName = c.nameGrp ? c.nameGrp.position.y : null;
+    const wasProf = c.profGrp ? c.profGrp.position.y : null;
+    for (const old of [c.nameGrp, c.profGrp, c.clue, c.addr]) {
+      if (!old) continue;
+      c.g.remove(old);
+      const k = BILLBOARDS.indexOf(old);
+      if (k >= 0) BILLBOARDS.splice(k, 1);
+    }
+
+    const solved = SOLVED[c.i] !== 0;
+    const col = verdictColor(c.i, labelFill(c));
+    // z 0 is the slice nearest the viewer; only it keeps its face
+
+    const nameGrp = billboard([textMesh(NAMES[c.i], solved ? 0.30 : 0.27, col)], 0);
+    const profGrp = billboard([textMesh(PROFS[c.i], solved ? 0.21 : 0.20, col)], 0);
+    if (!solved) {                       // unsolved: the type carries the cell
+      nameGrp.scale.setScalar(fitScale(nameGrp, ...BIG_NAME));
+      profGrp.scale.setScalar(fitScale(profGrp, ...BIG_PROF));
+    }
+    const wasNameZ = c.nameGrp ? c.nameGrp.position.z : null;
+    const wasProfZ = c.profGrp ? c.profGrp.position.z : null;
+    const z = FACE_Z;   // all text shares the plane the faces sit on
+    const nameY = solved ? TOP_NAME_Y : BIG_NAME_Y;
+    const profY = solved ? TOP_PROF_Y : BIG_PROF_Y;
+    nameGrp.position.set(0, wasName === null ? nameY : wasName,
+                         wasNameZ === null ? z : wasNameZ);
+    profGrp.position.set(0, wasProf === null ? profY : wasProf,
+                         wasProfZ === null ? z : wasProfZ);
+    c.g.add(nameGrp, profGrp);
+    c.nameGrp = nameGrp; c.profGrp = profGrp;
+
+    const addr = billboard([textMesh(addressOf(c), ADDR_SIZE, ADDR_COL, false)], 0);
+    const ab = new THREE.Box3().setFromObject(addr);      // textMesh centres; hang it off the left
+    addr.position.set(ADDR_X + (ab.max.x - ab.min.x) / 2, ADDR_Y, FACE_Z);
+    c.g.add(addr);
+    c.addr = addr;
+    c.nameTargetY = nameY;
+    c.profTargetY = profY;
+    c.labelTargetZ = z;
+
+    // solved: the face goes, and the clue covers the space it left
+    if (solved) {
+      const lines = (CLUES[c.i] || 'says nothing').split('\n');
+      const meshes = lines.map((ln, k) => {
+        const m = textMesh(ln, 0.2, col, false);  // the clue has its own black bar
+        m.position.y = ((lines.length - 1) / 2 - k) * 0.28;
+        return m;
+      });
+      const grp = billboard(meshes, 0.12, true);
+      grp.position.set(0, CLUE_Y, FACE_Z);
+      const box = new THREE.Box3().setFromObject(grp);
+      const fit = Math.min(CLUE_W / (box.max.x - box.min.x),
+                           CLUE_H / (box.max.y - box.min.y));
+      c.clueFit = fit;
+      c.g.add(grp);
+      c.clue = grp;
+    } else { c.clue = null; c.clueScale = null; c.clueFit = null; }
+
+    c.headTarget = solved ? 0 : HEAD_SMALL;
+  }
+
+  // every clue at one size, so a wordy clue never reads as a smaller one
+  const fits = cells.filter((c) => c.clueFit).map((c) => c.clueFit);
+  const uniform = fits.length ? Math.min(...fits) : 1;
+  for (const c of cells) {
+    if (!c.clue) continue;
+    c.clueScale = new THREE.Vector3(uniform, uniform, uniform);
+    c.clue.scale.setScalar(uniform * 0.35);          // pops open to clueScale in tick()
+  }
+}
+
+new FontLoader().load(
+  'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json',
+  (f) => { FONT = f; buildLabels(); layout(); });
+
+const zOn = [true, false, false];   // opens on the front slice alone
+   // which z-layers are on screen; any combination is legal
+let selected = null;            // cell chosen by tapping a face
+
+function layout() {
+  for (const c of cells) {
+    c.g.position.set((c.x - 1) * gap, (1 - c.y) * gap, (1 - c.z) * gap);
+    if (c.cage) {
+      c.g.remove(c.cage);
+      c.cage.userData.mat.dispose();
+    }
+    c.cage = makeCage(gap * cageSize);
+    c.cage.visible = document.getElementById('bars').checked;
+    c.g.add(c.cage);
+  }
+  // Turning only happens about y, so the cube stays as tall as it is but grows
+  // to its diagonal sideways; frame for both so nothing clips mid-rotation.
+  const rv = gap * 1.5 + 1.35;
+  const rh = gap * 1.5 * 1.415 + 1.35;
+  const v = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  baseDist = Math.max(rv / v, rh / (v * camera.aspect)) * 1.04;
+  applyPick();
+}
+
+function applyPick() {
+  const ghost = +document.getElementById('ghost').value / 100;   // 0 = the others are gone
+
+  for (const c of cells) {
+    const lit = zOn[c.z];
+    c.g.visible = lit || ghost > 0.004;
+    if (c.cage) c.cage.userData.mat.opacity = barMat.opacity * (lit ? 1 : ghost);
+    c.g.traverse((o) => {
+      if (!o.material || o.material.visible === false || o.userData.cage) return;
+      o.material.transparent = !lit;
+      o.material.opacity = lit ? 1 : ghost;
+      o.material.depthWrite = lit;              // ghosts must not occlude a live slice
+    });
+    c.scaleTarget = selected === c.i ? 1.28 : 1;
+  }
+
+  for (const b of document.querySelectorAll('#slices button')) {
+    const k = +b.dataset.k;
+    b.dataset.on = zOn[k] ? '1' : '0';
+    b.style.background = zOn[k] ? SLICE_CSS[k] : '#2a3242';
+  }
+
+  const shown = [0, 1, 2].filter((k) => zOn[k]).map((k) => k + 1);
+  document.getElementById('readout').innerHTML =
+    shown.length ? 'layers&nbsp;' + shown.join('&nbsp;') : 'no&nbsp;layers';
+
+  const p = document.getElementById('prompt');
+  const sel = selected !== null ? cells[selected] : null;
+  if (sel && SOLVED[sel.i] === 0) {
+    document.getElementById('pname').textContent = NAMES[sel.i] + ' the ' + PROFS[sel.i] + ' is\u2026';
+    p.classList.add('on');
+  } else p.classList.remove('on');
+}
+
+// ---- interaction -----------------------------------------------------------
+// Nothing tilts. A sideways drag turns the cube; an up-and-down drag rides the
+// viewer up or down like a lift, still facing straight ahead at the same
+// distance. Only a two-finger slide, a pinch, or the wheel changes distance.
+const rx = 0;
+let ry = 0;        // square on to the front slice
+let camY = 0;
+const CAM_Y_MAX = 6;
+let baseDist = 25;      // set from the spacing in layout()
+let zoom = 1;           // what the wheel and the pinch move
+const ZOOM_MIN = 0.45, ZOOM_MAX = 1.7;
+const setZoom = (z) => { zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z)); };
+let down = false, moved = 0, px = 0, py = 0;
+const active = new Map();
+let pinchD = null, pinchY = null;
+const spread = () => { const [a, b] = [...active.values()];
+  return { d: Math.hypot(a.x - b.x, a.y - b.y), my: (a.y + b.y) / 2 }; };
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const el = renderer.domElement;
+
+el.addEventListener('pointerdown', (e) => {
+  active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  el.setPointerCapture(e.pointerId);
+  if (active.size === 2) { const s = spread(); pinchD = s.d; pinchY = s.my; down = false; return; }
+  down = true; moved = 0; px = e.clientX; py = e.clientY;
+});
+el.addEventListener('pointermove', (e) => {
+  if (active.has(e.pointerId)) active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (active.size === 2) {                 // pinch, or a two-finger slide up and down
+    const s = spread();
+    if (pinchD !== null) {
+      setZoom(zoom * (pinchD / Math.max(s.d, 1)) + (s.my - pinchY) * 0.002);
+    }
+    pinchD = s.d; pinchY = s.my; moved = 999;
+    return;
+  }
+  if (!down) return;
+  const dx = e.clientX - px, dy = e.clientY - py;
+  moved += Math.abs(dx) + Math.abs(dy);
+  ry += dx * 0.006;
+  camY = Math.max(-CAM_Y_MAX, Math.min(CAM_Y_MAX, camY + dy * 0.02));
+  px = e.clientX; py = e.clientY;
+});
+el.addEventListener('pointercancel', (e) => active.delete(e.pointerId));
+el.addEventListener('pointerup', (e) => {
+  const wasPinch = active.size === 2;
+  active.delete(e.pointerId);
+  if (active.size < 2) pinchD = pinchY = null;
+  if (wasPinch) { down = false; return; }
+  down = false;
+  if (moved > 6) return;
+  const r = el.getBoundingClientRect();
+  ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(hitTargets, false).filter((h) => h.object.visible && (!h.object.parent || h.object.parent.visible));
+  if (!hits.length) return;
+  selected = cells[hits[0].object.userData.cell].i;
+  layout();
+});
+document.getElementById('prompt').addEventListener('click', (e) => {
+  const v = e.target.dataset.v;
+  if (!v) return;
+  if (v !== 'x') {
+    const c = selected !== null ? cells[selected] : null;
+    if (c) SOLVED[c.i] = v === 'c' ? 1 : 2;
+    buildLabels();
+  }
+  selected = null;
+  layout();
+});
+
+el.addEventListener('wheel', (e) => {
+  e.preventDefault(); setZoom(zoom + e.deltaY * 0.0012);
+}, { passive: false });
+
+for (const b of document.querySelectorAll('#slices button'))
+  b.addEventListener('click', () => {
+    const k = +b.dataset.k;
+    zOn[k] = !zOn[k];
+    if (selected !== null && !zOn[cells[selected].z]) selected = null;
+    layout();
+  });
+document.getElementById('gap').addEventListener('input', (e) => { gap = +e.target.value / 10; layout(); });
+document.getElementById('hsz').addEventListener('input', (e) => {
+  headScale = +e.target.value / 10;
+  // the tick loop picks the new size up via headTarget
+});
+document.getElementById('dep').addEventListener('input', (e) => { depth = +e.target.value; });
+document.getElementById('dep').addEventListener('change', buildHeads);
+document.getElementById('puffy').addEventListener('change', (e) => { puffy = e.target.checked; buildHeads(); });
+for (const id of ['labcol', 'shell'])
+  document.getElementById(id).addEventListener('change', () => { buildLabels(); layout(); });
+document.getElementById('ghost').addEventListener('input', applyPick);
+document.getElementById('bars').addEventListener('change', (e) => {
+  for (const c of cells) if (c.cage) c.cage.visible = e.target.checked;
+});
+document.getElementById('cagesz').addEventListener('input', (e) => { cageSize = +e.target.value / 100; layout(); });
+document.getElementById('barth').addEventListener('input', (e) => { barRadius = +e.target.value / 1000; layout(); });
+document.getElementById('barop').addEventListener('input', (e) => { barMat.opacity = +e.target.value / 100; applyPick(); });
+
+addEventListener('resize', () => {
+  renderer.setSize(W(), H()); camera.aspect = W() / H(); camera.updateProjectionMatrix();
+  layout();      // reframe for the new shape
+});
+
+const SPEED = 0.45;      // fast, but still a move rather than a cut
+(function tick() {
+  requestAnimationFrame(tick);
+  world.rotation.x = rx; world.rotation.y = ry;
+  camera.position.z = baseDist * zoom;
+  camera.position.y = camY;      // the viewer rides up and down, facing straight ahead
+  for (const c of cells) {
+    const want = c.scaleTarget ?? 1;
+    const cs = c.g.scale.x + (want - c.g.scale.x) * SPEED;
+    c.g.scale.setScalar(cs);
+    for (const g of [c.nameGrp, c.profGrp]) {
+      if (!g) continue;
+      const ty = g === c.nameGrp ? c.nameTargetY : c.profTargetY;
+      g.position.y += (ty - g.position.y) * SPEED;
+      g.position.z += (c.labelTargetZ - g.position.z) * SPEED;
+    }
+    if (c.clue) c.clue.scale.lerp(c.clueScale, SPEED);
+    if (c.head) {                                  // the face shrinks away on solve
+      const want = c.head.userData.norm * headScale * (c.headTarget ?? HEAD_SMALL);
+      const s = c.head.scale.x + (want - c.head.scale.x) * SPEED;
+      c.head.scale.setScalar(s);
+      c.head.visible = s > 0.002;
+    }
+  }
+  renderer.render(scene, camera);
+})();
+
+buildHeads();
+</script>

@@ -9,7 +9,9 @@
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "useDefineForClassFields": true,
-    "types": ["node"]
+    "types": ["node", "vite/client"],
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["shared", "scripts"]
+  "include": ["shared", "scripts", "site/src", "vite.config.ts", "vitest.config.ts"]
 }

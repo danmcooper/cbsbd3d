@@ -1,0 +1,33 @@
+/* Dark, and out of the cube's way: the scene is the interface. */
+:root {
+  --bg: #1a1d24;
+  --panel: #242830;
+  --text: #f3f3f3;
+  --text-muted: #a6acb8;
+  --border: #4a4b55;
+  --criminal: #ff5a4f;
+  --innocent: #5ad46a;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* The cube takes drags; the page must not take them too. */
+  overscroll-behavior: none;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0.75rem 1rem;
+}
+
+a {
+  color: inherit;
+}
