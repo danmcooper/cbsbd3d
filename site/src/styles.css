@@ -119,3 +119,49 @@ a {
 .slices-row button[data-on='1'] {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
 }
+
+.scene-frame {
+  position: relative;
+}
+
+.accuse {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: rgba(8, 10, 15, 0.93);
+  border: 1px solid #394052;
+  border-radius: 9px;
+  padding: 9px 13px;
+  font-size: 13px;
+}
+
+.accuse button {
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+}
+
+.accuse-criminal {
+  background: #c8362f;
+}
+
+.accuse-innocent {
+  background: #3f8f45;
+}
+
+.accuse-cancel {
+  background: #454b58;
+}
+
+.won {
+  text-align: center;
+  color: var(--innocent);
+}

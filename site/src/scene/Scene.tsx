@@ -19,10 +19,14 @@ const TAP_SLOP = 6;
 
 export default function Scene({
   puzzle,
+  flipped,
+  selected,
   slices,
   onPick,
 }: {
   puzzle: Puzzle;
+  flipped: number[];
+  selected: number | null;
   slices: boolean[];
   onPick?: (i: number | null) => void;
 }) {
@@ -147,6 +151,14 @@ export default function Scene({
   useEffect(() => {
     worldRef.current?.setSlices(slices);
   }, [slices]);
+
+  useEffect(() => {
+    worldRef.current?.setState(flipped);
+  }, [flipped]);
+
+  useEffect(() => {
+    worldRef.current?.setSelected(selected);
+  }, [selected]);
 
   if (!supported) {
     return (

@@ -165,6 +165,21 @@ export class CubeWorld {
     for (const cell of this.cells) cell.group.visible = on[cell.z];
   }
 
+  /**
+   * The board as it now stands. Called on every flip, so it does the least it
+   * can: heads are already built, and solving retargets them rather than
+   * rebuilding anything.
+   */
+  setState(flipped: number[]): void {
+    const face = new Set(flipped);
+    for (const cell of this.cells) cell.headTarget = face.has(cell.i) ? 0 : HEAD_SMALL;
+  }
+
+  /** The cell the verdict prompt is about, lifted slightly out of the board. */
+  setSelected(i: number | null): void {
+    for (const cell of this.cells) cell.group.userData.scaleTarget = cell.i === i ? 1.28 : 1;
+  }
+
   /** The cell under a point in normalised device coordinates, or null. */
   pick(ndcX: number, ndcY: number): number | null {
     this.pointer.set(ndcX, ndcY);
