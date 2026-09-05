@@ -2,13 +2,14 @@ import type { GameState } from './state';
 
 const keyOf = (id: string) => `cbsbd3d:game:${id}`;
 
-const isGame = (v: unknown): v is GameState => {
+const isGame = (v: unknown): v is Omit<GameState, 'muted'> & { muted?: number[] } => {
   const g = v as GameState | null;
   return (
     typeof g === 'object' &&
     g !== null &&
     Array.isArray(g.flipped) &&
     Array.isArray(g.mistakes) &&
+    (g.muted === undefined || Array.isArray(g.muted)) &&
     typeof g.startedAt === 'number'
   );
 };
@@ -23,7 +24,9 @@ export function load(id: string): GameState | null {
     const raw = localStorage.getItem(keyOf(id));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    return isGame(parsed) ? parsed : null;
+    // `muted` arrived after the game shipped, so a save from before it exists
+    // is still a valid game — it simply has nothing struck off.
+    return isGame(parsed) ? { ...parsed, muted: parsed.muted ?? [] } : null;
   } catch {
     return null;
   }

@@ -55,6 +55,13 @@ export const LAYER_FILL = [0xd6fce9, 0xb8f7d9, 0x9ef2c9];
 export const RED = 0xff5a4f;
 export const GREEN = 0x5ad46a;
 
+/**
+ * A clue the player has struck off. Still legible — a spent clue you misread
+ * is one you want to be able to go back and read again — but plainly done
+ * with, and no longer carrying a verdict colour.
+ */
+export const CLUE_MUTED = 0x707a88;
+
 /** Fast, but still a move rather than a cut. */
 export const SPEED = 0.45;
 

@@ -71,3 +71,23 @@ it('is won when every card is face up', () => {
   expect(isWon(puzzle, { ...state, flipped: [...Array(CARD_COUNT).keys()] })).toBe(true);
   expect(isWon(puzzle, state)).toBe(false);
 });
+
+it('strikes a spent clue off, and puts it back', () => {
+  const shown = state.flipped[0];
+  const off = reduce(puzzle, state, { kind: 'mute', i: shown });
+  expect(off.muted).toContain(shown);
+  expect(reduce(puzzle, off, { kind: 'mute', i: shown }).muted).not.toContain(shown);
+});
+
+it('will not strike off a clue that is not on show', () => {
+  const hidden = [...Array(CARD_COUNT).keys()].find((i) => !state.flipped.includes(i))!;
+  expect(reduce(puzzle, state, { kind: 'mute', i: hidden })).toBe(state);
+});
+
+it('leaves the score alone when a clue is struck off', () => {
+  // Striking a clue off is book-keeping, not a move: it proves nothing about
+  // the board and must never cost a mistake.
+  const off = reduce(puzzle, state, { kind: 'mute', i: state.flipped[0] });
+  expect(off.mistakes).toEqual(state.mistakes);
+  expect(off.flipped).toEqual(state.flipped);
+});

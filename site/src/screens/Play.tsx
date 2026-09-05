@@ -23,9 +23,14 @@ function Board({ puzzle }: { puzzle: Puzzle }) {
   const flipped = useMemo(() => state.flipped, [state.flipped]);
   const onPick = useCallback(
     (i: number | null) => {
-      // A tap on a card already face up is not a move: its clue is already on
-      // the table, and there is nothing left to accuse it of.
-      setSelected(i !== null && !state.flipped.includes(i) ? i : null);
+      // A card already face up has nothing left to accuse it of, so a tap on
+      // one strikes its clue off instead — and a second tap puts it back.
+      if (i !== null && state.flipped.includes(i)) {
+        dispatch({ kind: 'mute', i });
+        setSelected(null);
+        return;
+      }
+      setSelected(i);
     },
     [state.flipped],
   );
@@ -43,7 +48,14 @@ function Board({ puzzle }: { puzzle: Puzzle }) {
         </span>
       </header>
       <div className="scene-frame">
-        <Scene puzzle={puzzle} flipped={flipped} selected={selected} slices={slices} onPick={onPick} />
+        <Scene
+          puzzle={puzzle}
+          flipped={flipped}
+          muted={state.muted}
+          selected={selected}
+          slices={slices}
+          onPick={onPick}
+        />
         {selected !== null && (
           <Accuse
             person={puzzle.people[selected]}

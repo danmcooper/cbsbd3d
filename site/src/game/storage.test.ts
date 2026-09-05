@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { load, save } from './storage';
 
-const state = { flipped: [1, 2], mistakes: [3], startedAt: 1000 };
+const state = { flipped: [1, 2], mistakes: [3], muted: [1], startedAt: 1000 };
 
 afterEach(() => localStorage.clear());
 
@@ -32,4 +32,14 @@ it('survives storage being unavailable', () => {
 it('ignores a stored value that is not a game', () => {
   localStorage.setItem('cbsbd3d:game:abc', '{"flipped":"nonsense"}');
   expect(load('abc')).toBeNull();
+});
+
+it('loads a game saved before clues could be struck off', () => {
+  // The game shipped without `muted`; a save from then is still a game, and
+  // must not read as corrupt and throw someone's progress away.
+  localStorage.setItem(
+    'cbsbd3d:game:abc',
+    JSON.stringify({ flipped: [1], mistakes: [], startedAt: 1000 }),
+  );
+  expect(load('abc')).toEqual({ flipped: [1], mistakes: [], muted: [], startedAt: 1000 });
 });

@@ -4,14 +4,22 @@ export interface GameState {
   flipped: number[];
   /** One entry per wrong or refused accusation; the count is the score. */
   mistakes: number[];
+  /**
+   * Clues the player has struck off. Purely a book-keeping aid — a spent clue
+   * is greyed, not removed, and muting one proves nothing and costs nothing.
+   */
+  muted: number[];
   startedAt: number;
 }
 
-export type Action = { kind: 'accuse'; i: number; guess: 'criminal' | 'innocent' };
+export type Action =
+  | { kind: 'accuse'; i: number; guess: 'criminal' | 'innocent' }
+  | { kind: 'mute'; i: number };
 
 export const initialState = (p: Puzzle): GameState => ({
   flipped: [...p.initialReveals],
   mistakes: [],
+  muted: [],
   startedAt: Date.now(),
 });
 
@@ -30,6 +38,15 @@ export function isDeducible(p: Puzzle, s: GameState, i: number): boolean {
 }
 
 export function reduce(p: Puzzle, s: GameState, a: Action): GameState {
+  if (a.kind === 'mute') {
+    // Only a clue on show can be struck off, and striking off is its own
+    // inverse: a clue you decide you are not done with comes back.
+    if (!s.flipped.includes(a.i)) return s;
+    return s.muted.includes(a.i)
+      ? { ...s, muted: s.muted.filter((i) => i !== a.i) }
+      : { ...s, muted: [...s.muted, a.i] };
+  }
+
   // Already face up: not a move, and returning the same object keeps React
   // from re-rendering the scene for a tap that changed nothing.
   if (s.flipped.includes(a.i)) return s;

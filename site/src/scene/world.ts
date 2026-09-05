@@ -5,7 +5,7 @@ import { addressOf } from '../../../shared/solver/lattice';
 import { faceOf } from '../../../shared/solver/vocab';
 import { clueText, wrapClue } from '../clue/text';
 import { cellLayout, type ClueLayout, type TextLayout } from './cell';
-import { BACKGROUND, FACE_Z, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
+import { BACKGROUND, CLUE_MUTED, FACE_Z, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
 import { loadHead } from './head';
 import { pickCell } from './pick';
 import { fitObject, fitScale, loadFont, plate, textMesh, uniformClueScale } from './text';
@@ -19,16 +19,35 @@ function label(part: TextLayout, colour: number): THREE.Object3D {
   return mesh;
 }
 
-/** A wrapped clue over its black bar, centred on its own origin. */
-function clueBlock(lines: string[], box: ClueLayout, colour: number): THREE.Object3D {
+/**
+ * A wrapped clue over its black bar, centred on its own origin. The line
+ * meshes come back alongside it so the clue can be greyed when it is struck
+ * off, without disturbing the bar behind it.
+ */
+function clueBlock(
+  lines: string[],
+  box: ClueLayout,
+  colour: number,
+): { group: THREE.Object3D; lines: THREE.Object3D[] } {
   const group = new THREE.Group();
-  lines.forEach((line, k) => {
+  const meshes = lines.map((line, k) => {
     const mesh = textMesh(line, box.size, colour, false);
     mesh.position.y = ((lines.length - 1) / 2 - k) * box.leading;
     group.add(mesh);
+    return mesh;
   });
   group.add(plate(group, box.pad));
-  return group;
+  return { group, lines: meshes };
+}
+
+/** Repaints a built text mesh, whatever it is made of. */
+function paint(object: THREE.Object3D, colour: number): void {
+  object.traverse((o) => {
+    const material = (o as THREE.Mesh).material;
+    for (const m of [material].flat()) {
+      if (m && 'color' in m) (m as THREE.MeshPhongMaterial).color.setHex(colour);
+    }
+  });
 }
 
 export interface Cell {
@@ -45,6 +64,10 @@ export interface Cell {
   open: THREE.Object3D | null;
   solved: THREE.Object3D | null;
   clue: THREE.Object3D | null;
+  /** The clue's own lines, repainted when it is struck off. */
+  clueLines: THREE.Object3D[];
+  /** The verdict colour a struck-off clue comes back to. */
+  clueColour: number;
   /** The board-wide clue size this cell's clue opens to. */
   clueScale: number;
   /** Whether this cell was solved last time the state was applied. */
@@ -71,6 +94,7 @@ export class CubeWorld {
   /** Set by the React side each frame; the loop only reads them. */
   view = { ry: 0, camY: 0, zoom: 1 };
   private face = new Set<number>();
+  private muted = new Set<number>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -116,6 +140,8 @@ export class CubeWorld {
         open: null,
         solved: null,
         clue: null,
+        clueLines: [],
+        clueColour: 0xffffff,
         clueScale: 1,
         wasSolved: null,
       });
@@ -174,8 +200,15 @@ export class CubeWorld {
       const solvedFace = new THREE.Group();
       solvedFace.add(label(done.name, done.colour), label(done.profession, done.colour));
       let clue: THREE.Object3D | null = null;
+      cell.clueLines = [];
       if (done.clue && person.clue) {
-        clue = clueBlock(wrapClue(clueText(person.clue, puzzle.people, cell.i)), done.clue, done.colour);
+        const built = clueBlock(
+          wrapClue(clueText(person.clue, puzzle.people, cell.i)),
+          done.clue,
+          done.colour,
+        );
+        clue = built.group;
+        cell.clueLines = built.lines;
         clue.position.set(0, done.clue.y, FACE_Z);
         fits.push(fitScale(new THREE.Box3().setFromObject(clue), done.clue.maxW, done.clue.maxH));
         solvedFace.add(clue);
@@ -194,6 +227,7 @@ export class CubeWorld {
       cell.open = openFace;
       cell.solved = solvedFace;
       cell.clue = clue;
+      cell.clueColour = done.colour;
       cell.labels = [openFace, solvedFace, address];
       cell.group.add(openFace, solvedFace, address);
     }
@@ -204,6 +238,7 @@ export class CubeWorld {
       cell.clue?.scale.setScalar(uniform);
     }
     this.applyState();
+    this.applyMuted();
   }
 
   /**
@@ -242,6 +277,23 @@ export class CubeWorld {
         cell.clue.scale.setScalar(cell.clueScale * 0.35);
       }
       cell.wasSolved = on;
+    }
+  }
+
+  /**
+   * Which clues the player has struck off. Greying is the whole effect: the
+   * clue stays where it is and stays readable, because a clue you struck off
+   * by mistake is one you need to be able to read again.
+   */
+  setMuted(muted: number[]): void {
+    this.muted = new Set(muted);
+    this.applyMuted();
+  }
+
+  private applyMuted(): void {
+    for (const cell of this.cells) {
+      const colour = this.muted.has(cell.i) ? CLUE_MUTED : cell.clueColour;
+      for (const line of cell.clueLines) paint(line, colour);
     }
   }
 
