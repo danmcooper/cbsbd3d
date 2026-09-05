@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { CARD_COUNT, type Puzzle } from '../../../shared/puzzle';
-import { BACKGROUND, FOV, GAP, SPEED } from './constants';
+import { faceOf } from '../../../shared/solver/vocab';
+import { BACKGROUND, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
+import { loadHead } from './head';
 import { cellPosition, framingDistance } from './lattice';
 
 export interface Cell {
@@ -9,6 +11,9 @@ export interface Cell {
   z: number;
   group: THREE.Group;
   hit: THREE.Mesh;
+  head: THREE.Group | null;
+  /** What the head is lerping towards: `HEAD_SMALL` open, 0 once solved. */
+  headTarget: number;
 }
 
 /**
@@ -62,14 +67,34 @@ export class CubeWorld {
       hit.userData.cell = i;
       group.add(hit);
       this.world.add(group);
-      this.cells.push({ i, z: Math.floor(i / 9), group, hit });
+      this.cells.push({ i, z: Math.floor(i / 9), group, hit, head: null, headTarget: HEAD_SMALL });
     }
 
     this.frame = requestAnimationFrame(this.tick);
   }
 
-  /** Nothing yet reads the puzzle; heads and text arrive in later tasks. */
-  setPuzzle(_puzzle: Puzzle): void {}
+  /**
+   * Builds one extruded head per suspect. Heads are the slowest thing in the
+   * scene to build, so they are built once per puzzle and never rebuilt; the
+   * solve animation scales them away rather than removing them.
+   */
+  async setPuzzle(puzzle: Puzzle): Promise<void> {
+    await Promise.all(
+      puzzle.people.map(async (person, i) => {
+        const cell = this.cells[i];
+        const emoji = person.face ?? faceOf(person.profession, person.gender === 'female' ? 'female' : 'male');
+        const head = await loadHead(emoji);
+        // A puzzle can change, or the component unmount, while 27 fetches are
+        // in flight; a head that arrives late must not join a dead scene.
+        if (this.disposed) return;
+        if (cell.head) cell.group.remove(cell.head);
+        head.scale.setScalar(head.userData.norm * cell.headTarget);
+        head.position.y = HEAD_Y;
+        cell.group.add(head);
+        cell.head = head;
+      }),
+    );
+  }
 
   resize(width: number, height: number): void {
     this.renderer.setSize(width, height, false);
@@ -88,6 +113,14 @@ export class CubeWorld {
     for (const c of this.cells) {
       const want = c.group.userData.scaleTarget ?? 1;
       c.group.scale.setScalar(c.group.scale.x + (want - c.group.scale.x) * SPEED);
+      if (c.head) {
+        // The face shrinks away on solve rather than vanishing, so the eye can
+        // follow which cell just changed.
+        const target = c.head.userData.norm * c.headTarget;
+        const s = c.head.scale.x + (target - c.head.scale.x) * SPEED;
+        c.head.scale.setScalar(s);
+        c.head.visible = s > 0.002;
+      }
     }
     this.renderer.render(this.scene, this.camera);
   };

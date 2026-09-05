@@ -37,7 +37,7 @@ export default function Scene({ puzzle }: { puzzle: Puzzle }) {
   }, [supported]);
 
   useEffect(() => {
-    worldRef.current?.setPuzzle(puzzle);
+    void worldRef.current?.setPuzzle(puzzle);
   }, [puzzle]);
 
   if (!supported) {
