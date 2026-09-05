@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type { Person } from '../../../shared/puzzle';
-import { cellLayout } from './cell';
-import { BIG_NAME, GAP, TOP_PROF_Y } from './constants';
+import { cellLayout, spentColour } from './cell';
+import { BIG_NAME, GAP, GREEN, RED, SPENT, TOP_PROF_Y } from './constants';
 
 const person: Person = {
   name: 'ada',
@@ -61,4 +61,19 @@ it('keeps the clue inside the card, clear of the profession above it', () => {
   expect(clue?.maxW).toBeLessThanOrEqual(BIG_NAME[0]);
   expect(clue?.maxW).toBeLessThan(GAP);
   expect(clue!.y + clue!.maxH / 2).toBeLessThan(TOP_PROF_Y - profession.size / 2);
+});
+
+it('darkens a struck-off clue by one factor, whichever verdict it carries', () => {
+  const channel = (colour: number, shift: number) => (colour >> shift) & 0xff;
+  for (const verdict of [RED, GREEN]) {
+    for (const shift of [16, 8, 0]) {
+      expect(channel(spentColour(verdict), shift)).toBe(
+        Math.round(channel(verdict, shift) * SPENT),
+      );
+    }
+  }
+  // Still legible, still the verdict: a clue struck off by mistake has to be
+  // readable again, and still has to say which way it went.
+  expect(spentColour(RED)).not.toBe(spentColour(GREEN));
+  expect(spentColour(RED)).toBeLessThan(RED);
 });

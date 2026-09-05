@@ -4,11 +4,11 @@ import { CARD_COUNT, type Puzzle } from '../../../shared/puzzle';
 import { addressOf } from '../../../shared/solver/lattice';
 import { faceOf } from '../../../shared/solver/vocab';
 import { clueText, wrapClue } from '../clue/text';
-import { cellLayout, type ClueLayout, type TextLayout } from './cell';
-import { BACKGROUND, CLUE_MUTED, FACE_Z, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
+import { cellLayout, spentColour, type ClueLayout, type TextLayout } from './cell';
+import { BACKGROUND, FACE_Z, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
 import { loadHead } from './head';
 import { pickCell } from './pick';
-import { fitObject, fitScale, loadFont, plate, textMesh, uniformClueScale } from './text';
+import { fitObject, fitScale, loadFont, textMesh, uniformClueScale } from './text';
 import { cellPosition, framingDistance } from './lattice';
 
 /** One line of a cell's text, centred, sitting on the faces' plane. */
@@ -20,9 +20,10 @@ function label(part: TextLayout, colour: number): THREE.Object3D {
 }
 
 /**
- * A wrapped clue over its black bar, centred on its own origin. The line
- * meshes come back alongside it so the clue can be greyed when it is struck
- * off, without disturbing the bar behind it.
+ * A wrapped clue, centred on its own origin. It carries the same per-glyph
+ * shell the name and profession do and nothing else behind it — no bar. The
+ * line meshes come back alongside it so the clue can be darkened when it is
+ * struck off.
  */
 function clueBlock(
   lines: string[],
@@ -31,20 +32,19 @@ function clueBlock(
 ): { group: THREE.Object3D; lines: THREE.Object3D[] } {
   const group = new THREE.Group();
   const meshes = lines.map((line, k) => {
-    const mesh = textMesh(line, box.size, colour, false);
+    const mesh = textMesh(line, box.size, colour, true);
     mesh.position.y = ((lines.length - 1) / 2 - k) * box.leading;
     group.add(mesh);
     return mesh;
   });
-  group.add(plate(group, box.pad));
   return { group, lines: meshes };
 }
 
-/** Repaints a built text mesh, whatever it is made of. */
+/** Recolours a built text mesh, leaving its shell alone. */
 function paint(object: THREE.Object3D, colour: number): void {
   object.traverse((o) => {
-    const material = (o as THREE.Mesh).material;
-    for (const m of [material].flat()) {
+    if (!o.userData.paintable) return;
+    for (const m of [(o as THREE.Mesh).material].flat()) {
       if (m && 'color' in m) (m as THREE.MeshPhongMaterial).color.setHex(colour);
     }
   });
@@ -281,9 +281,9 @@ export class CubeWorld {
   }
 
   /**
-   * Which clues the player has struck off. Greying is the whole effect: the
-   * clue stays where it is and stays readable, because a clue you struck off
-   * by mistake is one you need to be able to read again.
+   * Which clues the player has struck off. Darkening is the whole effect: the
+   * clue stays where it is and stays readable, because a clue struck off by
+   * mistake is one you need to be able to read again.
    */
   setMuted(muted: number[]): void {
     this.muted = new Set(muted);
@@ -292,7 +292,7 @@ export class CubeWorld {
 
   private applyMuted(): void {
     for (const cell of this.cells) {
-      const colour = this.muted.has(cell.i) ? CLUE_MUTED : cell.clueColour;
+      const colour = this.muted.has(cell.i) ? spentColour(cell.clueColour) : cell.clueColour;
       for (const line of cell.clueLines) paint(line, colour);
     }
   }

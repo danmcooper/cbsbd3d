@@ -16,6 +16,7 @@ import {
   HEAD_Y,
   LAYER_FILL,
   RED,
+  SPENT,
   TOP_NAME_Y,
   TOP_PROF_Y,
 } from './constants';
@@ -36,9 +37,8 @@ export interface TextLayout {
 export interface ClueLayout {
   y: number;
   size: number;
-  /** Line spacing, and the padding of the black bar around the block. */
+  /** Line spacing. */
   leading: number;
-  pad: number;
   maxW: number;
   maxH: number;
 }
@@ -91,10 +91,20 @@ export function cellLayout(person: Person, flipped: boolean, z: number): CellLay
     },
     clue:
       flipped && person.clue
-        ? { y: CLUE_Y, size: 0.2, leading: 0.24, pad: 0.12, maxW: CLUE_W, maxH: CLUE_H }
+        ? { y: CLUE_Y, size: 0.2, leading: 0.24, maxW: CLUE_W, maxH: CLUE_H }
         : null,
     address: { x: ADDR_X, y: ADDR_Y, size: ADDR_SIZE, colour: ADDR_COL },
     colour: flipped ? (person.criminal ? RED : GREEN) : fill,
     fill,
   };
+}
+
+/**
+ * The colour of a clue the player has struck off: the same verdict, well
+ * down. Both verdicts are darkened by one factor, so a spent red and a spent
+ * green go on differing in nothing but hue.
+ */
+export function spentColour(colour: number): number {
+  const dim = (shift: number) => Math.round(((colour >> shift) & 0xff) * SPENT);
+  return (dim(16) << 16) | (dim(8) << 8) | dim(0);
 }

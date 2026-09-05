@@ -56,11 +56,11 @@ export const RED = 0xff5a4f;
 export const GREEN = 0x5ad46a;
 
 /**
- * A clue the player has struck off. Still legible — a spent clue you misread
- * is one you want to be able to go back and read again — but plainly done
- * with, and no longer carrying a verdict colour.
+ * How far a struck-off clue is darkened. One factor for both verdicts, so a
+ * spent red and a spent green stay identical in everything but hue — the same
+ * rule the bright pair follow.
  */
-export const CLUE_MUTED = 0x707a88;
+export const SPENT = 0.32;
 
 /** Fast, but still a move rather than a cut. */
 export const SPEED = 0.45;
