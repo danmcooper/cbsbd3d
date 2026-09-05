@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it } from 'vitest';
 import { validatePuzzle } from '../../../shared/puzzle';
+import { openingSlices } from '../game/state';
 import { Board } from './Play';
 
 const puzzle = validatePuzzle(
@@ -52,4 +53,25 @@ it('puts the board back to its opening when the reset is confirmed', () => {
   act(() => button(host, 'start over?')!.click());
   expect(host.textContent).toContain('0 wrong');
   expect(host.textContent).toContain(`${puzzle.initialReveals.length}/27`);
+});
+
+it('opens a new puzzle on its start card, and a resumed one on the cube', () => {
+  const fresh = mount();
+  expect(fresh.querySelector('[aria-label="start"]')).not.toBeNull();
+  act(() => button(fresh, 'Start')!.click());
+  expect(fresh.querySelector('[aria-label="start"]')).toBeNull();
+
+  localStorage.setItem(
+    `cbsbd3d:game:${puzzle.id}`,
+    JSON.stringify({ flipped: puzzle.initialReveals, mistakes: [3], muted: [], startedAt: 1000 }),
+  );
+  expect(mount().querySelector('[aria-label="start"]')).toBeNull();
+});
+
+it('shows only the slices holding a revealed clue', () => {
+  const host = mount();
+  const on = [...host.querySelectorAll('.slices-row button')].map((b) => b.getAttribute('data-on'));
+  const wanted = openingSlices(puzzle).map((s) => (s ? '1' : '0'));
+  expect(on).toEqual(wanted);
+  expect(wanted).toContain('1');
 });

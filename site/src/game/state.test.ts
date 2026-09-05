@@ -1,8 +1,15 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { beforeAll, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { CARD_COUNT, validatePuzzle, type Puzzle } from '../../../shared/puzzle';
-import { initialState, isDeducible, isWon, reduce, type GameState } from './state';
+import {
+  initialState,
+  isDeducible,
+  isWon,
+  openingSlices,
+  reduce,
+  type GameState,
+} from './state';
 
 // A real generated cube, not a fixture: the reducer's whole job is enforcing
 // the deduction paths the generator wrote, so it is tested against ones it wrote.
@@ -103,4 +110,20 @@ it('puts the board back to its opening on a reset', () => {
   expect(fresh.flipped).toEqual(puzzle.initialReveals);
   expect(fresh.mistakes).toEqual([]);
   expect(fresh.muted).toEqual([]);
+});
+
+describe('openingSlices', () => {
+  it('opens on the slice holding the revealed clue, not the front one', () => {
+    // Card 15 is B2b — the middle slice.
+    expect(openingSlices({ ...puzzle, initialReveals: [15] })).toEqual([false, true, false]);
+    expect(openingSlices({ ...puzzle, initialReveals: [26] })).toEqual([false, false, true]);
+  });
+
+  it('opens on every slice that holds a reveal', () => {
+    expect(openingSlices({ ...puzzle, initialReveals: [1, 20] })).toEqual([true, false, true]);
+  });
+
+  it('falls back to the front slice when nothing is revealed', () => {
+    expect(openingSlices({ ...puzzle, initialReveals: [] })).toEqual([true, false, false]);
+  });
 });

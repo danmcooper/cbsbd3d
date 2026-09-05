@@ -65,4 +65,17 @@ export function reduce(p: Puzzle, s: GameState, a: Action): GameState {
   return { ...s, mistakes: [...s.mistakes, a.i] };
 }
 
+/**
+ * The slices a game opens with: only those holding a card the generator turned
+ * face up. The first clue is the only thing a player has to go on, so the cube
+ * opens on the slice carrying it rather than on the front slice, which may be
+ * empty of anything to read.
+ */
+export function openingSlices(p: Puzzle): boolean[] {
+  const on = [false, false, false];
+  for (const i of p.initialReveals) on[Math.floor(i / 9)] = true;
+  // A puzzle with no reveals at all would open on a blank cube; show the front.
+  return on.some(Boolean) ? on : [true, false, false];
+}
+
 export const isWon = (_p: Puzzle, s: GameState): boolean => s.flipped.length === CARD_COUNT;

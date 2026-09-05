@@ -2,7 +2,15 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { validatePuzzle, type Puzzle } from '../../../shared/puzzle';
 import Accuse from '../components/Accuse';
 import SliceSwitches from '../components/SliceSwitches';
-import { initialState, isWon, reduce, type Action, type GameState } from '../game/state';
+import Start from '../components/Start';
+import {
+  initialState,
+  isWon,
+  openingSlices,
+  reduce,
+  type Action,
+  type GameState,
+} from '../game/state';
 import { load, save } from '../game/storage';
 import Scene from '../scene/Scene';
 import { useFetch } from '../useFetch';
@@ -15,9 +23,14 @@ export function Board({ puzzle }: { puzzle: Puzzle }) {
     puzzle,
     (p) => load(p.id) ?? initialState(p),
   );
-  const [slices, setSlices] = useState([true, false, false]);
+  const [slices, setSlices] = useState(() => openingSlices(puzzle));
   const [selected, setSelected] = useState<number | null>(null);
   const [confirming, setConfirming] = useState(false);
+  // A game with nothing on it yet is a game not begun, so it opens on its card.
+  // A game restored mid-solve goes straight back to the cube.
+  const [starting, setStarting] = useState(
+    () => state.flipped.length === puzzle.initialReveals.length && state.mistakes.length === 0,
+  );
 
   useEffect(() => save(puzzle.id, state), [puzzle.id, state]);
 
@@ -56,6 +69,7 @@ export function Board({ puzzle }: { puzzle: Puzzle }) {
                 dispatch({ kind: 'reset' });
                 setSelected(null);
                 setConfirming(false);
+                setSlices(openingSlices(puzzle));
               }}
             >
               start over?
@@ -87,6 +101,7 @@ export function Board({ puzzle }: { puzzle: Puzzle }) {
         )}
       </div>
       <SliceSwitches value={slices} onChange={setSlices} />
+      {starting && <Start puzzle={puzzle} onStart={() => setStarting(false)} />}
       {won && <p className="won">Solved — every suspect accounted for.</p>}
     </>
   );

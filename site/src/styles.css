@@ -180,3 +180,57 @@ a {
   text-align: center;
   color: var(--innocent);
 }
+
+/* The start card, and anything else that needs the scene to wait. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 15, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.modal {
+  width: 320px;
+  max-width: 85vw;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.start-title {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.start-date {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.start-difficulty {
+  margin: 0.4rem 0 0;
+  color: var(--text-muted);
+}
+
+.btn-start {
+  margin-top: 1.1rem;
+  width: 140px;
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: #3f8f45;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.5rem 0;
+  cursor: pointer;
+}
