@@ -5,7 +5,17 @@ import { addressOf } from '../../../shared/solver/lattice';
 import { faceOf } from '../../../shared/solver/vocab';
 import { clueText, wrapClue } from '../clue/text';
 import { cellLayout, spentColour, type ClueLayout, type TextLayout } from './cell';
-import { BACKGROUND, FACE_Z, FOV, GAP, HEAD_SMALL, HEAD_Y, SPEED } from './constants';
+import {
+  BACKGROUND,
+  FACE_Z,
+  FOV,
+  GAP,
+  HEAD_SMALL,
+  HEAD_SOLVED,
+  HEAD_SOLVED_Y,
+  HEAD_Y,
+  SPEED,
+} from './constants';
 import { loadHead } from './head';
 import { pickCell } from './pick';
 import { fitObject, fitScale, loadFont, textMesh, uniformClueScale } from './text';
@@ -56,8 +66,9 @@ export interface Cell {
   group: THREE.Group;
   hit: THREE.Mesh;
   head: THREE.Group | null;
-  /** What the head is lerping towards: `HEAD_SMALL` open, 0 once solved. */
+  /** What the head is lerping towards, in size and in height. */
   headTarget: number;
+  headYTarget: number;
   /** Everything built for this cell, so a rebuild can clear it. */
   labels: THREE.Object3D[];
   /** The two faces. Solving swaps which one is on screen. */
@@ -136,6 +147,7 @@ export class CubeWorld {
         hit,
         head: null,
         headTarget: HEAD_SMALL,
+        headYTarget: HEAD_Y,
         labels: [],
         open: null,
         solved: null,
@@ -173,7 +185,7 @@ export class CubeWorld {
         if (this.disposed) return;
         if (cell.head) cell.group.remove(cell.head);
         head.scale.setScalar(head.userData.norm * cell.headTarget);
-        head.position.y = HEAD_Y;
+        head.position.y = cell.headYTarget;
         cell.group.add(head);
         cell.head = head;
       }),
@@ -268,7 +280,8 @@ export class CubeWorld {
   private applyState(): void {
     for (const cell of this.cells) {
       const on = this.face.has(cell.i);
-      cell.headTarget = on ? 0 : HEAD_SMALL;
+      cell.headTarget = on ? HEAD_SOLVED : HEAD_SMALL;
+      cell.headYTarget = on ? HEAD_SOLVED_Y : HEAD_Y;
       if (cell.open) cell.open.visible = !on;
       if (cell.solved) cell.solved.visible = on;
       // A clue that has just been revealed pops open; one that was already
@@ -326,12 +339,12 @@ export class CubeWorld {
       const want = c.group.userData.scaleTarget ?? 1;
       c.group.scale.setScalar(c.group.scale.x + (want - c.group.scale.x) * SPEED);
       if (c.head) {
-        // The face shrinks away on solve rather than vanishing, so the eye can
-        // follow which cell just changed.
+        // The face shrinks and climbs on solve rather than cutting, so the eye
+        // can follow which cell just changed.
         const target = c.head.userData.norm * c.headTarget;
         const s = c.head.scale.x + (target - c.head.scale.x) * SPEED;
         c.head.scale.setScalar(s);
-        c.head.visible = s > 0.002;
+        c.head.position.y += (c.headYTarget - c.head.position.y) * SPEED;
       }
       if (c.clue) {
         const want = c.clueScale;

@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type { Person } from '../../../shared/puzzle';
 import { cellLayout, spentColour } from './cell';
-import { BIG_NAME, GAP, GREEN, RED, SPENT, TOP_PROF_Y } from './constants';
+import { BIG_NAME, GAP, GREEN, HEAD_SMALL, RED, SPENT, TOP_NAME_Y, TOP_PROF_Y } from './constants';
 
 const person: Person = {
   name: 'ada',
@@ -21,18 +21,32 @@ it('gives a criminal and an innocent identical geometry, differing only in colou
   expect(good.colour).toBe(0x5ad46a);
 });
 
-it('drops the head and lifts the name when solved', () => {
+it('steps the head back above the name when solved, and shows the clue', () => {
   const solved = cellLayout(person, true, 0);
-  expect(solved.head).toBeNull();
-  expect(solved.name.y).toBeCloseTo(0.78);
+  const open = cellLayout(person, false, 0);
+  expect(solved.head.scale).toBeLessThan(open.head.scale);
+  expect(solved.head.y).toBeGreaterThan(solved.name.y);
+  expect(solved.name.y).toBeCloseTo(TOP_NAME_Y);
   expect(solved.clue).not.toBeNull();
 });
 
-it('keeps the head small above a large name when unsolved', () => {
+it('carries a big head over a big name when unsolved', () => {
   const open = cellLayout(person, false, 0);
-  expect(open.head?.scale).toBeCloseTo(0.42);
+  expect(open.head.scale).toBeCloseTo(HEAD_SMALL);
   expect(open.name.y).toBeCloseTo(0.14);
   expect(open.clue).toBeNull();
+});
+
+it('leaves room for the head above the name in both states', () => {
+  // Text is centred and helvetiker's cap height is about 0.7 of its size, with
+  // the shell dilating each glyph by a further 0.12. A head that overlaps the
+  // name is the failure this catches.
+  const halfText = (size: number) => (0.7 * size) / 2 + 0.12 * size;
+  for (const flipped of [true, false]) {
+    const { head, name } = cellLayout(person, flipped, 0);
+    const nameTop = flipped ? name.y + halfText(name.size) : name.y + BIG_NAME[1] / 2;
+    expect(head.y - head.scale / 2).toBeGreaterThan(nameTop);
+  }
 });
 
 it('shades the label by slice, lightest at the front', () => {

@@ -14,7 +14,8 @@ export interface GameState {
 
 export type Action =
   | { kind: 'accuse'; i: number; guess: 'criminal' | 'innocent' }
-  | { kind: 'mute'; i: number };
+  | { kind: 'mute'; i: number }
+  | { kind: 'reset' };
 
 export const initialState = (p: Puzzle): GameState => ({
   flipped: [...p.initialReveals],
@@ -38,6 +39,9 @@ export function isDeducible(p: Puzzle, s: GameState, i: number): boolean {
 }
 
 export function reduce(p: Puzzle, s: GameState, a: Action): GameState {
+  // Back to the cards the generator chose to reveal, and a fresh clock.
+  if (a.kind === 'reset') return initialState(p);
+
   if (a.kind === 'mute') {
     // Only a clue on show can be struck off, and striking off is its own
     // inverse: a clue you decide you are not done with comes back.

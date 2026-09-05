@@ -13,6 +13,8 @@ import {
   CLUE_Y,
   GREEN,
   HEAD_SMALL,
+  HEAD_SOLVED,
+  HEAD_SOLVED_Y,
   HEAD_Y,
   LAYER_FILL,
   RED,
@@ -51,7 +53,7 @@ export interface AddressLayout {
 }
 
 export interface CellLayout {
-  head: HeadLayout | null;
+  head: HeadLayout;
   name: TextLayout;
   profession: TextLayout;
   clue: ClueLayout | null;
@@ -66,15 +68,17 @@ export interface CellLayout {
  * Where everything on one cell face goes, as plain data.
  *
  * The two states are quite different faces — unsolved, the type carries the
- * cell under a small head; solved, the head goes and the clue takes the space
- * it left — and both are here so the rules can be read, and tested, without a
- * canvas. The clue's *words* are not: expanding the markup needs the whole
+ * cell under a big head; solved, the head steps back above the name and the
+ * clue takes the room it gave up — and both are here so the rules can be
+ * read, and tested, without a canvas. The clue's *words* are not: expanding the markup needs the whole
  * cast, which a single cell does not have.
  */
 export function cellLayout(person: Person, flipped: boolean, z: number): CellLayout {
   const fill = LAYER_FILL[z];
   return {
-    head: flipped ? null : { scale: HEAD_SMALL, y: HEAD_Y },
+    head: flipped
+      ? { scale: HEAD_SOLVED, y: HEAD_SOLVED_Y }
+      : { scale: HEAD_SMALL, y: HEAD_Y },
     name: {
       text: person.name.toLowerCase(),
       size: flipped ? 0.3 : 0.27,

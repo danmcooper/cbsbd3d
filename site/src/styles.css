@@ -78,6 +78,21 @@ a {
   text-decoration: none;
 }
 
+.play-head button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+
+.reset-confirm {
+  display: flex;
+  gap: 0.35rem;
+}
+
 .scene {
   position: relative;
   background: #0f1116;

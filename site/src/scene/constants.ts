@@ -10,9 +10,19 @@
 /** Distance between neighbouring cell centres. */
 export const GAP = 3.0;
 
-/** A small head is a portrait, not the whole cell. */
-export const HEAD_SMALL = 0.42;
-export const HEAD_Y = 0.74;
+/**
+ * A head is a portrait, not the whole cell. Unsolved it rides above the name,
+ * high enough that the name at its full fitted height still clears it.
+ */
+export const HEAD_SMALL = 0.546;
+export const HEAD_Y = 0.82;
+
+/**
+ * Solved, the head stays but steps back to make room for the clue, and moves
+ * above the name rather than sitting over it.
+ */
+export const HEAD_SOLVED = 0.42;
+export const HEAD_SOLVED_Y = 0.98;
 
 /** All text shares the plane the faces sit on. */
 export const FACE_Z = 0.04;
@@ -23,9 +33,9 @@ export const BIG_PROF: [number, number] = [2.0, 0.5];
 export const BIG_NAME_Y = 0.14;
 export const BIG_PROF_Y = -0.52;
 
-/** Solved, the head goes and both move to the top. */
-export const TOP_NAME_Y = 0.78;
-export const TOP_PROF_Y = 0.5;
+/** Solved, the whole stack drops to leave the head its room at the top. */
+export const TOP_NAME_Y = 0.6;
+export const TOP_PROF_Y = 0.32;
 
 /**
  * The clue grows to fill the space the face left behind: the width of the name
@@ -40,7 +50,7 @@ export const TOP_PROF_Y = 0.5;
  */
 export const CLUE_W = 2.1;
 export const CLUE_H = 1.43;
-export const CLUE_Y = -0.34;
+export const CLUE_Y = -0.52;
 
 /** Every cell wears its address, small, top left. */
 export const ADDR_X = -1.16;

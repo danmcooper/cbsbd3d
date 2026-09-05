@@ -7,7 +7,7 @@ import { load, save } from '../game/storage';
 import Scene from '../scene/Scene';
 import { useFetch } from '../useFetch';
 
-function Board({ puzzle }: { puzzle: Puzzle }) {
+export function Board({ puzzle }: { puzzle: Puzzle }) {
   // A game in progress is restored before the first render, so a reload never
   // shows an empty board that then jumps.
   const [state, dispatch] = useReducer(
@@ -17,6 +17,7 @@ function Board({ puzzle }: { puzzle: Puzzle }) {
   );
   const [slices, setSlices] = useState([true, false, false]);
   const [selected, setSelected] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => save(puzzle.id, state), [puzzle.id, state]);
 
@@ -46,6 +47,24 @@ function Board({ puzzle }: { puzzle: Puzzle }) {
         <span>
           {state.flipped.length}/27 · {state.mistakes.length} wrong
         </span>
+        {/* Reset throws a game away, and the header is easy to hit by
+            accident on a phone, so it asks once. */}
+        {confirming ? (
+          <span className="reset-confirm">
+            <button
+              onClick={() => {
+                dispatch({ kind: 'reset' });
+                setSelected(null);
+                setConfirming(false);
+              }}
+            >
+              start over?
+            </button>
+            <button onClick={() => setConfirming(false)}>keep</button>
+          </span>
+        ) : (
+          <button onClick={() => setConfirming(true)}>reset</button>
+        )}
       </header>
       <div className="scene-frame">
         <Scene

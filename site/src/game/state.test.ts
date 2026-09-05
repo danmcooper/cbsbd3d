@@ -91,3 +91,16 @@ it('leaves the score alone when a clue is struck off', () => {
   expect(off.mistakes).toEqual(state.mistakes);
   expect(off.flipped).toEqual(state.flipped);
 });
+
+it('puts the board back to its opening on a reset', () => {
+  const played = reduce(
+    puzzle,
+    reduce(puzzle, state, { kind: 'mute', i: state.flipped[0] }),
+    { kind: 'accuse', i: notYetDeducible, guess: 'criminal' },
+  );
+  expect(played.mistakes.length).toBe(1);
+  const fresh = reduce(puzzle, played, { kind: 'reset' });
+  expect(fresh.flipped).toEqual(puzzle.initialReveals);
+  expect(fresh.mistakes).toEqual([]);
+  expect(fresh.muted).toEqual([]);
+});
