@@ -1,6 +1,11 @@
 {
   "puzzles": [
     {
+      "date": "2026-11-25",
+      "id": "2ac02e4e94fa",
+      "difficulty": "Hard"
+    },
+    {
       "date": "2026-11-24",
       "id": "baef71bb14c9",
       "difficulty": "Tricky"
